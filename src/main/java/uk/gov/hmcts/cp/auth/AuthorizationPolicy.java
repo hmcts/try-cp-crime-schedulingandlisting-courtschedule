@@ -88,7 +88,7 @@ public class AuthorizationPolicy {
     /** True for anything the admin realm guards. Static so the admin filter can ask without a bean. */
     public static boolean isAdminPath(final String requestUri) {
         final String path = stripTrailingSlash(requestUri);
-        return path.equals(ADMIN_PREFIX) || path.startsWith(ADMIN_PREFIX + "/");
+        return ADMIN_PREFIX.equals(path) || path.startsWith(ADMIN_PREFIX + "/");
     }
 
     /** The roles this API recognises; a caller needs at least one of them. */

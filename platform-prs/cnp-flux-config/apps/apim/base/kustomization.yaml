@@ -1,4 +1,4 @@
-# EDIT: one line added - ../apim-tryitnow-slc/apim-tryitnow-slc.yaml
+# EDIT: one line added - ../apim-try-slc/apim-try-slc.yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
@@ -6,5 +6,5 @@ resources:
   - ../../base/workload-identity
   - ../apim-marketplace/apim-marketplace.yaml
   - ../apim-marketplace-web/apim-marketplace-web.yaml
-  - ../apim-tryitnow-slc/apim-tryitnow-slc.yaml
+  - ../apim-try-slc/apim-try-slc.yaml
 namespace: apim

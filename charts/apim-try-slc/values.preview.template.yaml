@@ -5,15 +5,15 @@ java:
   keyVaults:
     apim:
       secrets:
-        - name: tryitnow-slc-DEMO-SIGNING-KEY-JWK
+        - name: try-slc-DEMO-SIGNING-KEY-JWK
           alias: DEMO_SIGNING_KEY_JWK
-        - name: tryitnow-slc-POSTGRES-USER
+        - name: try-slc-POSTGRES-USER
           alias: POSTGRES_USER
-        - name: tryitnow-slc-POSTGRES-PASS
+        - name: try-slc-POSTGRES-PASS
           alias: POSTGRES_PASS
-        - name: tryitnow-slc-POSTGRES-HOST
+        - name: try-slc-POSTGRES-HOST
           alias: POSTGRES_HOST
-        - name: tryitnow-slc-POSTGRES-PORT
+        - name: try-slc-POSTGRES-PORT
           alias: POSTGRES_PORT
-        - name: tryitnow-slc-POSTGRES-DATABASE
+        - name: try-slc-POSTGRES-DATABASE
           alias: POSTGRES_DATABASE

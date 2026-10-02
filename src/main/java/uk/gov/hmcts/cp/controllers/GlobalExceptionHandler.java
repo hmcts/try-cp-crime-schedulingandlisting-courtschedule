@@ -45,12 +45,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleContractViolation(final ContractViolationException ex) {
         log.info("Rejected a recording that does not match the contract: {}", ex.getMessage());
         return ResponseEntity.badRequest().body(
-                errorResponseFactory.of("contract_violation", ex.getMessage()));
+                errorResponseFactory.create("contract_violation", ex.getMessage()));
     }
 
     @ExceptionHandler(RecordingNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleRecordingNotFound(final RecordingNotFoundException ex) {
-        return ResponseEntity.status(404).body(errorResponseFactory.of("not_found", ex.getMessage()));
+        return ResponseEntity.status(404).body(errorResponseFactory.create("not_found", ex.getMessage()));
     }
 
     /**
@@ -61,7 +61,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleTokenValidation(final TokenValidationException ex) {
         final int status = ex.getReason().isAuthenticationFailure() ? 401 : 403;
         return ResponseEntity.status(status).body(
-                errorResponseFactory.of(ex.getReason().getErrorCode(), ex.getReason().getDescription()));
+                errorResponseFactory.create(ex.getReason().getErrorCode(), ex.getReason().getDescription()));
     }
 
     @ExceptionHandler(Exception.class)
@@ -69,7 +69,7 @@ public class GlobalExceptionHandler {
         // Log the cause, return none of it: an internal class name or message is not a consumer's
         // business, even in a sandbox.
         log.error("Unhandled exception serving try-it-now request", ex);
-        return ResponseEntity.status(500).body(errorResponseFactory.of(
+        return ResponseEntity.status(500).body(errorResponseFactory.create(
                 "internal_server_error", "Unexpected error. Quote the traceId when reporting this."));
     }
 }

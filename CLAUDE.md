@@ -1,4 +1,4 @@
-## Repo: try-it-now-cp-crime-schedulingandlisting-courtschedule
+## Repo: try-cp-crime-schedulingandlisting-courtschedule
 
 Sandbox ("Try It Now") implementation of the Scheduling and Listing Court Schedule API. Serves
 contract-checked examples — committed fixtures as the floor, recordings captured from a lower
@@ -6,7 +6,7 @@ environment on top — so a prospective consumer can call the API before request
 live one.
 
 **Pattern**: Recording store with real token validation, two auth realms
-**Platform**: CNP (Jenkins + Flux), product `apim`, component `tryitnow-slc` — **not** the CP
+**Platform**: CNP (Jenkins + Flux), product `apim`, component `try-slc` — **not** the CP
 platform. No ADO pipelines, no `cp-vp-aks-deploy`, no `wire-service-deployment`.
 **Implements**: `api-cp-crime-schedulingandlisting-courtschedule` (pinned `1.1.0`)
 **Backend dependencies**: Postgres only. No route to the Common Platform, and must not gain one.

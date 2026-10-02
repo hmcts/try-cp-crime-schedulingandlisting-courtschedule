@@ -1,7 +1,7 @@
-# CNP Onboarding Plan — apim/tryitnow-slc
+# CNP Onboarding Plan — apim/try-slc
 
-Service: `try-it-now-cp-crime-schedulingandlisting-courtschedule`
-Product: `apim` · Component: `tryitnow-slc`
+Service: `try-cp-crime-schedulingandlisting-courtschedule`
+Product: `apim` · Component: `try-slc`
 
 Status: ✅ Done · ⚠️ Decide first · ○ To do
 
@@ -20,20 +20,20 @@ Status: ✅ Done · ⚠️ Decide first · ○ To do
 
 | What | Name |
 |---|---|
-| GitHub repo | `try-it-now-cp-crime-schedulingandlisting-courtschedule` |
+| GitHub repo | `try-cp-crime-schedulingandlisting-courtschedule` |
 | GitHub topic | `jenkins-cft-j-z` |
-| Jenkins product / component | `apim` / `tryitnow-slc` |
-| Jenkins job path | `HMCTS_j_to_z/try-it-now-cp-crime-schedulingandlisting-courtschedule` |
+| Jenkins product / component | `apim` / `try-slc` |
+| Jenkins job path | `HMCTS_j_to_z/try-cp-crime-schedulingandlisting-courtschedule` |
 | Kubernetes namespace | `apim` |
-| Helm release / chart | `apim-tryitnow-slc` |
-| Docker image | `hmctsprod.azurecr.io/apim/tryitnow-slc:{tag}` |
-| Flux config path | `apps/apim/apim-tryitnow-slc/` |
+| Helm release / chart | `apim-try-slc` |
+| Docker image | `hmctsprod.azurecr.io/apim/try-slc:{tag}` |
+| Flux config path | `apps/apim/apim-try-slc/` |
 | Key vault | `apim-{env}` (`apim-sbox` in sandbox) |
-| Vault secret | `tryitnow-slc-DEMO-SIGNING-KEY-JWK` |
+| Vault secret | `try-slc-DEMO-SIGNING-KEY-JWK` |
 | Managed identity | `apim-{env}-mi`, chart `aadIdentityName: apim` |
-| Internal ingress | `apim-tryitnow-slc-{env}.service.core-compute-{env}.internal` |
-| AAT staging URL | `apim-tryitnow-slc-staging.aat.platform.hmcts.net` |
-| Preview URL | `apim-tryitnow-slc-pr-{N}.preview.platform.hmcts.net` |
+| Internal ingress | `apim-try-slc-{env}.service.core-compute-{env}.internal` |
+| AAT staging URL | `apim-try-slc-staging.aat.platform.hmcts.net` |
+| Preview URL | `apim-try-slc-pr-{N}.preview.platform.hmcts.net` |
 
 ---
 
@@ -49,7 +49,7 @@ Status: ✅ Done · ⚠️ Decide first · ○ To do
 |---|---|---|
 | 1.1 | Repo scaffolded from `service-api-marketplace` | ✅ Done |
 | 1.2 | `Jenkinsfile_CNP`, `Jenkinsfile_nightly` | ✅ Done |
-| 1.3 | Helm chart `charts/apim-tryitnow-slc/` | ✅ Done |
+| 1.3 | Helm chart `charts/apim-try-slc/` | ✅ Done |
 | 1.4 | `catalog-info.yaml` | ✅ Done |
 | 1.5 | Application code, stubs, tests | ✅ Done |
 | 1.6 | Create `hmcts/try-it-now-...` on GitHub and push | ○ To do |
@@ -61,7 +61,7 @@ Status: ✅ Done · ⚠️ Decide first · ○ To do
 | # | Step | Status | Notes |
 |---|---|---|---|
 | 2.1 | Generate the demo RSA keypair as a JWK document | ○ To do | Any RSA 2048 JWK export; `kid` is free-form |
-| 2.2 | `az keyvault secret set --vault-name apim-aat --name tryitnow-slc-DEMO-SIGNING-KEY-JWK` | ○ To do | |
+| 2.2 | `az keyvault secret set --vault-name apim-aat --name try-slc-DEMO-SIGNING-KEY-JWK` | ○ To do | |
 | 2.3 | Same for `apim-sbox` if sandbox is wanted | ○ To do | |
 
 > Skipping this does not block a deploy — the service starts with an ephemeral key and logs a
@@ -72,10 +72,10 @@ Status: ✅ Done · ⚠️ Decide first · ○ To do
 | # | Step | Status | Notes |
 |---|---|---|---|
 | 3.1 | Add to `deployment-controls.yml` | ○ To raise | Snippet in `platform-prs/cnp-jenkins-config/` |
-| 3.3 | `infrastructure/` with `terraform-module-postgresql-flexible` | ✅ Done | Its **own** server, `apim-tryitnow-flexible-{env}`, database `tryitnow`. Not a second database on `apim-flexible` — two repos running terraform against one server fight over state. The vault is consumed as a data source, as `web-api-marketplace` does for Redis |
+| 3.3 | `infrastructure/` with `terraform-module-postgresql-flexible` | ✅ Done | Its **own** server, `apim-try-flexible-{env}`, database `tryitnow`. Not a second database on `apim-flexible` — two repos running terraform against one server fight over state. The vault is consumed as a data source, as `web-api-marketplace` does for Redis |
 | 3.4 | Entra app registration for the admin realm, with `app.recordings.write` and `app.recordings.publish` app roles | ○ To do | Until this exists the chart sets `ADMIN_DISABLED: "true"` and `/admin/**` answers 503. The service refuses to start with a half-configured admin realm rather than running it unguarded |
 | 3.2 | `terraform-infra-approvals/<repo>.json` | ○ To raise | Written, in `platform-prs/`. Lists the postgres module and `azurerm_key_vault_secret` only — **not** `cnp-module-key-vault`, which this repo does not create |
-| 3.5 | `Jenkinsfile_parameterized` for the sandbox job | ✅ Done | `withParameterizedPipeline('java', 'apim', 'tryitnow-slc', ...)`, matching both existing components |
+| 3.5 | `Jenkinsfile_parameterized` for the sandbox job | ✅ Done | `withParameterizedPipeline('java', 'apim', 'try-slc', ...)`, matching both existing components |
 | 3.6 | `.terraform-version` at repo root | ✅ Done | `1.16.1`, matching `service-api-marketplace`. Sandbox agents need it for tfenv |
 
 ## Phase 4 — cnp-flux-config
@@ -83,8 +83,8 @@ Status: ✅ Done · ⚠️ Decide first · ○ To do
 | # | Step | Status | Notes |
 |---|---|---|---|
 | 4.1 | `apps/apim/` namespace kustomizations | ✅ Done | Established by `apim-marketplace` |
-| 4.2 | `apps/apim/apim-tryitnow-slc/apim-tryitnow-slc.yaml` HelmRelease | ○ To raise | Written, in `platform-prs/` |
-| 4.3 | Image policy and repository | ○ To raise | Written. Prefer regenerating: `./add-image-policies.sh apim apim tryitnow-slc hmctsprod` — the trailing registry is required, the script still defaults to `hmctspublic` |
+| 4.2 | `apps/apim/apim-try-slc/apim-try-slc.yaml` HelmRelease | ○ To raise | Written, in `platform-prs/` |
+| 4.3 | Image policy and repository | ○ To raise | Written. Prefer regenerating: `./add-image-policies.sh apim apim try-slc hmctsprod` — the trailing registry is required, the script still defaults to `hmctspublic` |
 | 4.4 | Add to `apps/apim/base/kustomization.yaml` | ○ To raise | Under `resources`. Note the env bases take `patches` instead — adding to the wrong key silently does nothing |
 | 4.5 | Env patches (`aat.yaml`, `sbox.yaml`, `demo.yaml`) | ○ To raise | Written. **No preview patch** — `apps/apim/preview/base` does not include the HelmReleases at all; PR environments are Jenkins-deployed |
 | 4.7 | Prod overlay | ⚠️ Out of scope | `apps/apim/prod/` does not exist for this product, and neither existing component is in `environment-approvals.yml` |
@@ -96,8 +96,8 @@ Status: ✅ Done · ⚠️ Decide first · ○ To do
 |---|---|---|---|
 | 5.1 | Jenkins seed job / org scan picks up the repo | ○ To do | |
 | 5.2 | First PR build green | ○ To do | |
-| 5.3 | Preview health check | ○ To do | `https://apim-tryitnow-slc-pr-{N}.preview.platform.hmcts.net/health` |
-| 5.4 | AAT staging health check | ○ To do | `https://apim-tryitnow-slc-staging.aat.platform.hmcts.net/health` |
+| 5.3 | Preview health check | ○ To do | `https://apim-try-slc-pr-{N}.preview.platform.hmcts.net/health` |
+| 5.4 | AAT staging health check | ○ To do | `https://apim-try-slc-staging.aat.platform.hmcts.net/health` |
 | 5.5 | Smoke: `GET /scenarios`, then token → API call | ○ To do | |
 | 5.6 | Jenkins check added to branch protection | ○ To do | |
 

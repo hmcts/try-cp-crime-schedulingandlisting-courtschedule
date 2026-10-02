@@ -49,7 +49,7 @@ public class ErrorResponseFactory {
                 .build();
     }
 
-    public ErrorResponse of(final String error, final String message) {
+    public ErrorResponse create(final String error, final String message) {
         return ErrorResponse.builder()
                 .error(error)
                 .message(message)

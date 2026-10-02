@@ -1,4 +1,4 @@
 # Insert into cnp-jenkins-config/deployment-controls.yml, keeping the file's alphabetical
 # order by repo URL. It sits between service-auth-provider-java-client and wa-workflow-api.
-  - repo: https://github.com/hmcts/try-it-now-cp-crime-schedulingandlisting-courtschedule.git
+  - repo: https://github.com/hmcts/try-cp-crime-schedulingandlisting-courtschedule.git
     deployment-enabled: true

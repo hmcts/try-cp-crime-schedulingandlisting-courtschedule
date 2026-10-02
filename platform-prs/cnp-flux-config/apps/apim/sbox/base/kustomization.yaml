@@ -1,4 +1,4 @@
-# EDIT: one line added - ../../apim-tryitnow-slc/sbox.yaml
+# EDIT: one line added - ../../apim-try-slc/sbox.yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
@@ -9,4 +9,4 @@ patches:
   - path: ../../serviceaccount/sbox.yaml
   - path: ../../apim-marketplace/sbox.yaml
   - path: ../../apim-marketplace-web/sbox.yaml
-  - path: ../../apim-tryitnow-slc/sbox.yaml
+  - path: ../../apim-try-slc/sbox.yaml
