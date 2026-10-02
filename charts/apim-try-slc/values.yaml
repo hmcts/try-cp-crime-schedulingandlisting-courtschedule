@@ -1,10 +1,10 @@
 java:
   replicas: 1
   applicationPort: 8080
-  image: 'hmctsprod.azurecr.io/apim/tryitnow-slc:latest'
+  image: 'hmctsprod.azurecr.io/apim/try-slc:latest'
   # Internal-only host, matching apim-marketplace. This service is NOT reachable from a browser on
   # the public catalogue at hmcts.github.io - see "Exposure" in the README before changing this.
-  ingressHost: apim-tryitnow-slc-{{ .Values.global.environment }}.service.core-compute-{{ .Values.global.environment }}.internal
+  ingressHost: apim-try-slc-{{ .Values.global.environment }}.service.core-compute-{{ .Values.global.environment }}.internal
   aadIdentityName: apim
   environment:
     APPLICATIONINSIGHTS_ENABLED: "false"
@@ -22,4 +22,4 @@ java:
   # every master merge, and a fresh key would silently invalidate every token already issued.
   # Seed it once with:
   #   az keyvault secret set --vault-name apim-aat \
-  #     --name tryitnow-slc-DEMO-SIGNING-KEY-JWK --file demo-signing-key.jwk.json
+  #     --name try-slc-DEMO-SIGNING-KEY-JWK --file demo-signing-key.jwk.json

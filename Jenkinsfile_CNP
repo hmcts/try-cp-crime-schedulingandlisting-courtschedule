@@ -4,7 +4,7 @@
 
 def type = "java"
 def product = "apim"
-def component = "tryitnow-slc"
+def component = "try-slc"
 
 withPipeline(type, product, component) {
   enableAksStagingDeployment()

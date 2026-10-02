@@ -1,15 +1,15 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: apim-tryitnow-slc
+  name: apim-try-slc
 spec:
-  releaseName: apim-tryitnow-slc
+  releaseName: apim-try-slc
   values:
     java:
-      image: hmctsprod.azurecr.io/apim/tryitnow-slc:latest #{"$imagepolicy": "flux-system:apim-tryitnow-slc"}
+      image: hmctsprod.azurecr.io/apim/try-slc:latest #{"$imagepolicy": "flux-system:apim-try-slc"}
   chart:
     spec:
-      chart: ./stable/apim-tryitnow-slc
+      chart: ./stable/apim-try-slc
       sourceRef:
         kind: GitRepository
         name: hmcts-charts

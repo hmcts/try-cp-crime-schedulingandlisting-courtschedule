@@ -210,7 +210,7 @@ dependencies {
 }
 
 bootJar {
-  archiveFileName = "apim-tryitnow-slc.jar"
+  archiveFileName = "apim-try-slc.jar"
 
   manifest {
     attributes('Implementation-Version': project.version.toString())

@@ -39,7 +39,7 @@ module "postgresql_flexible" {
   source                    = "git@github.com:hmcts/terraform-module-postgresql-flexible?ref=master"
   env                       = var.env
   product                   = var.product
-  name                      = "${var.product}-tryitnow-flexible"
+  name                      = "${var.product}-try-flexible"
   component                 = var.component
   business_area             = "CFT"
   location                  = var.location
@@ -62,31 +62,31 @@ module "postgresql_flexible" {
 # marketplace-POSTGRES-* in the same vault without colliding. The chart maps them onto the
 # POSTGRES_* aliases application.yaml reads.
 resource "azurerm_key_vault_secret" "postgres_user" {
-  name         = "tryitnow-slc-POSTGRES-USER"
+  name         = "try-slc-POSTGRES-USER"
   value        = module.postgresql_flexible.username
   key_vault_id = data.azurerm_key_vault.vault.id
 }
 
 resource "azurerm_key_vault_secret" "postgres_pass" {
-  name         = "tryitnow-slc-POSTGRES-PASS"
+  name         = "try-slc-POSTGRES-PASS"
   value        = module.postgresql_flexible.password
   key_vault_id = data.azurerm_key_vault.vault.id
 }
 
 resource "azurerm_key_vault_secret" "postgres_host" {
-  name         = "tryitnow-slc-POSTGRES-HOST"
+  name         = "try-slc-POSTGRES-HOST"
   value        = module.postgresql_flexible.fqdn
   key_vault_id = data.azurerm_key_vault.vault.id
 }
 
 resource "azurerm_key_vault_secret" "postgres_port" {
-  name         = "tryitnow-slc-POSTGRES-PORT"
+  name         = "try-slc-POSTGRES-PORT"
   value        = "5432"
   key_vault_id = data.azurerm_key_vault.vault.id
 }
 
 resource "azurerm_key_vault_secret" "postgres_database" {
-  name         = "tryitnow-slc-POSTGRES-DATABASE"
+  name         = "try-slc-POSTGRES-DATABASE"
   value        = "tryitnow"
   key_vault_id = data.azurerm_key_vault.vault.id
 }
