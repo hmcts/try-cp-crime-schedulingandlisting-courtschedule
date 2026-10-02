@@ -48,8 +48,9 @@ silently does nothing.
 environments are deployed by Jenkins, not reconciled by Flux. `apim-marketplace` has a
 `preview.yaml` that nothing references; do not copy that.
 
-**No prod overlay.** `apps/apim/prod/` does not exist for this product. Production needs its own
-change, plus an `environment-approvals.yml` entry, and is out of scope here.
+**No prod overlay, ever.** Demo is the last environment for this component — there is deliberately
+no production deployment, so there is nothing to raise for `apps/apim/prod/`. The `demo.yaml` patch
+is the one that carries the live configuration.
 
 Image policies are normally generated rather than hand-written:
 

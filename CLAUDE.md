@@ -6,7 +6,8 @@ environment on top — so a prospective consumer can call the API before request
 live one.
 
 **Pattern**: Recording store with real token validation, two auth realms
-**Platform**: CNP (Jenkins + Flux), product `apim`, component `try-slc` — **not** the CP
+**Platform**: CNP (Jenkins + Flux), product `apim`, component `try-slc`, **demo is the last
+environment** — **not** the CP
 platform. No ADO pipelines, no `cp-vp-aks-deploy`, no `wire-service-deployment`.
 **Implements**: `api-cp-crime-schedulingandlisting-courtschedule` (pinned `1.1.0`)
 **Backend dependencies**: Postgres only. No route to the Common Platform, and must not gain one.
@@ -59,11 +60,17 @@ uk.gov.hmcts.cp/
 
 - **Never add a backend client.** The value of this service is that it cannot reach CP. A real call
   would make responses non-deterministic and drag it back inside the CP network boundary.
-- **Data flows inbound, from non-live CP only.** Examples are captured from `service-cp-*` in dev
-  (`devamp01`) or STE and **pushed** into the production deployment in CNP over `/admin/recordings`.
-  The production service never calls out, and the live CP estate is never a source. Changing either
-  half of that — making this service fetch, or recording from live — breaks the reason it is allowed
-  to run in CNP and be publicly readable.
+- **Demo is the last environment. There is no production deployment and there must not be one.**
+  Sandbox, preview, AAT, demo. Anyone adding a prod overlay, a prod tfvars or an
+  `environment-approvals.yml` entry for this component has misread the design. Demo is public and
+  needs no VPN, so "only demo" is not a reason to relax anything below.
+- **Data flows inbound, from non-live CP only.** Examples are captured from `service-cp-*` in SIT,
+  dev (`devamp01`) or STE and **pushed** into the **demo** deployment in CNP over
+  `/admin/recordings`. The demo service never calls out, and the live CP estate is never a source.
+  There is no CP-to-CNP network path; what crosses is an authenticated HTTPS client calling a public
+  host, and the admin Entra token is the whole of the control. Changing either half of that — making
+  this service fetch, or recording from live — breaks the reason it is allowed to run in CNP and be
+  publicly readable.
 - **The auth code is a copy, not a fork.** `EntraTokenValidator`, `EntraAuthProperties`, `AuthMode`,
   `ValidatedCaller` and `TokenValidationException` must stay **byte-identical** to
   `service-cp-crime-scheduleandlist-courtschedule` so consumers meet production auth behaviour here;
