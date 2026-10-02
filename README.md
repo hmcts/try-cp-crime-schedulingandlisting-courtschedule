@@ -9,7 +9,7 @@ It holds no Common Platform data, has no route to a CP backend, and is not inten
 
 | | |
 |---|---|
-| Product / component | `apim` / `tryitnow-slc` |
+| Product / component | `apim` / `try-slc` |
 | Platform | CNP (Jenkins + Flux), namespace `apim` |
 | Contract | `uk.gov.hmcts.cp:api-cp-crime-schedulingandlisting-courtschedule:1.1.0` |
 | Backend dependencies | **none** |
@@ -104,7 +104,7 @@ sequenceDiagram
 ```
 
 ```bash
-BASE=https://apim-tryitnow-slc-staging.aat.platform.hmcts.net
+BASE=https://apim-try-slc-staging.aat.platform.hmcts.net
 
 # 1. Get a token (same client_credentials form post as Entra)
 TOKEN=$(curl -s -X POST $BASE/oauth2/v2.0/token \
@@ -170,7 +170,7 @@ once per environment:
 
 ```bash
 az keyvault secret set --vault-name apim-aat \
-  --name tryitnow-slc-DEMO-SIGNING-KEY-JWK --file demo-signing-key.jwk.json
+  --name try-slc-DEMO-SIGNING-KEY-JWK --file demo-signing-key.jwk.json
 ```
 
 Left blank, the service generates an ephemeral key and logs a warning — local development only.
@@ -385,12 +385,12 @@ about because both are easy to reintroduce:
 
 ## Deployment
 
-CNP, via Jenkins (`Jenkinsfile_CNP` → `withPipeline('java', 'apim', 'tryitnow-slc')`) and Flux.
+CNP, via Jenkins (`Jenkinsfile_CNP` → `withPipeline('java', 'apim', 'try-slc')`) and Flux.
 Remaining onboarding steps are tracked in [CNP-ONBOARDING-PLAN.md](CNP-ONBOARDING-PLAN.md).
 
 | | |
 |---|---|
-| Host, non-prod | `apim-tryitnow-slc-{env}.service.core-compute-{env}.internal` |
+| Host, non-prod | `apim-try-slc-{env}.service.core-compute-{env}.internal` |
 | Host, prod | a no-prefix `platform.hmcts.net` host behind Front Door, following `apim-marketplace-web.platform.hmcts.net` |
 
 **Production does not exist yet for `apim`.** The `marketplace-web` onboarding records the prod

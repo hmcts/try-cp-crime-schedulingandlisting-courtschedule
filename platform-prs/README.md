@@ -19,12 +19,12 @@ Without the approvals file the pipeline refuses the terraform plan, which is the
 
 ## 2. `hmcts/cnp-flux-config`
 
-New folder `apps/apim/apim-tryitnow-slc/` containing:
+New folder `apps/apim/apim-try-slc/` containing:
 
 | File | Purpose |
 |---|---|
-| `apim-tryitnow-slc.yaml` | The HelmRelease. Carries the `$imagepolicy` marker Flux rewrites on each build |
-| `image-repo.yaml` | Points at `hmctsprod.azurecr.io/apim/tryitnow-slc` |
+| `apim-try-slc.yaml` | The HelmRelease. Carries the `$imagepolicy` marker Flux rewrites on each build |
+| `image-repo.yaml` | Points at `hmctsprod.azurecr.io/apim/try-slc` |
 | `image-policy.yaml` | Selects the newest `prod-{sha}-{timestamp}` tag. `prod-automated: disabled`, matching both existing components |
 | `aat.yaml`, `demo.yaml`, `sbox.yaml` | Per-environment ingress host and vault mounts |
 
@@ -35,10 +35,10 @@ and copying one wholesale would silently revert any change made since:
 
 | File | Added |
 |---|---|
-| `apps/apim/base/kustomization.yaml` | `- ../apim-tryitnow-slc/apim-tryitnow-slc.yaml` under `resources` |
-| `apps/apim/aat/base/kustomization.yaml` | `- path: ../../apim-tryitnow-slc/aat.yaml` under `patches` |
-| `apps/apim/sbox/base/kustomization.yaml` | `- path: ../../apim-tryitnow-slc/sbox.yaml` |
-| `apps/apim/demo/base/kustomization.yaml` | `- path: ../../apim-tryitnow-slc/demo.yaml` |
+| `apps/apim/base/kustomization.yaml` | `- ../apim-try-slc/apim-try-slc.yaml` under `resources` |
+| `apps/apim/aat/base/kustomization.yaml` | `- path: ../../apim-try-slc/aat.yaml` under `patches` |
+| `apps/apim/sbox/base/kustomization.yaml` | `- path: ../../apim-try-slc/sbox.yaml` |
+| `apps/apim/demo/base/kustomization.yaml` | `- path: ../../apim-try-slc/demo.yaml` |
 
 Note the two kinds of edit: the shared `base` lists **HelmRelease paths** under `resources`,
 while each environment's `base` lists **patch paths** under `patches`. Adding to the wrong one
@@ -54,7 +54,7 @@ change, plus an `environment-approvals.yml` entry, and is out of scope here.
 Image policies are normally generated rather than hand-written:
 
 ```bash
-./add-image-policies.sh apim apim tryitnow-slc hmctsprod
+./add-image-policies.sh apim apim try-slc hmctsprod
 ```
 
 The trailing `hmctsprod` is required — the script still defaults to `hmctspublic`, which is the
@@ -66,7 +66,7 @@ Three steps are manual and cannot be expressed as a file:
 
 1. **Create the GitHub repo**, add topic `jenkins-cft-j-z`, enable branch protection on `master`.
 2. **Seed the demo signing key** into each vault, once:
-   `az keyvault secret set --vault-name apim-aat --name tryitnow-slc-DEMO-SIGNING-KEY-JWK --file demo-signing-key.jwk.json`
+   `az keyvault secret set --vault-name apim-aat --name try-slc-DEMO-SIGNING-KEY-JWK --file demo-signing-key.jwk.json`
 3. **Register the admin realm app** in the corporate Entra tenant with app roles
    `app.recordings.write` and `app.recordings.publish`. Until it exists the chart sets
    `ADMIN_DISABLED: "true"` and `/admin/**` answers 503.
