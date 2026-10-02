@@ -105,6 +105,7 @@ answers 400 naming the offending field. Recordings serve nothing until published
 | Try-it-out fails in browser, curl works | CORS. Check `demo.allowed-origins`, and that preflight is exempt in `ClientIdResolutionFilter` |
 | Try-it-out fails at DNS | Non-prod hosts are internal. Prod is a `platform.hmcts.net` host behind Front Door — see Deployment in README |
 | Intermittent 401 after a deploy | `DEMO_SIGNING_KEY_JWK` not set, so each pod generates its own key. Set the vault secret |
+| `/info` answers `{}` | The `springBoot.buildInfo` block was dropped from `build.gradle`, so no `META-INF/build-info.properties` is generated. The endpoint stays exposed and returns 200, which is why `ActuatorEndpointsTest` asserts the body rather than the status |
 | Startup fails naming a stub file | That stub drifted from the contract, or `build.gradle` pinned a new contract version |
 | Startup fails on `admin.auth.tenant-id` | The admin realm is half-configured. Set `ADMIN_DISABLED=true` locally, or supply a real tenant and audience. It fails closed on purpose |
 | `/admin/**` answers 503 | Admin realm disabled — not a bug, the configured state when no Entra app registration exists |
