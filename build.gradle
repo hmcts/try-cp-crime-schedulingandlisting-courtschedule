@@ -209,6 +209,27 @@ dependencies {
   testImplementation group: 'io.rest-assured', name: 'rest-assured', version: '6.0.1'
 }
 
+// Generates META-INF/build-info.properties, which is the only reason GET /info returns anything
+// other than {}. Copied from the spring-actuator.gradle that
+// service-cp-crime-hearing-results-document-subscription applies, so /info carries the same fields
+// here as it does there.
+//
+// ARTEFACT_VERSION is what the CNP pipeline passes; project.version is the local fallback.
+springBoot {
+  buildInfo {
+    properties {
+      version = System.getProperty('ARTEFACT_VERSION') ?: project.version
+    }
+  }
+}
+
+// The build timestamp is the point of this file, so it must never be served from a cache or
+// reported up-to-date - that would pin /info to whenever the task last genuinely ran.
+tasks.named('bootBuildInfo') {
+  outputs.upToDateWhen { false }
+  outputs.cacheIf { false }
+}
+
 bootJar {
   archiveFileName = "apim-try-slc.jar"
 
