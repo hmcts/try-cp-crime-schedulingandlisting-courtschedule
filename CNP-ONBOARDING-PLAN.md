@@ -34,14 +34,31 @@ Status: ✅ Done · ⚠️ Decide first · ○ To do
 | Internal ingress | `apim-try-slc-{env}.service.core-compute-{env}.internal` |
 | AAT staging URL | `apim-try-slc-staging.aat.platform.hmcts.net` |
 | Preview URL | `apim-try-slc-pr-{N}.preview.platform.hmcts.net` |
+| **Demo URL — the live one** | `apim-try-slc.demo.platform.hmcts.net`, behind Front Door |
+| Production | **none, deliberately** |
 
 ---
 
-## Phase 0 — Decide exposure ⚠️
+## Phase 0 — Exposure ✅ decided
+
+**Demo is the last environment. There is no production deployment of this service.** The path is
+sandbox → preview → AAT → demo, and demo is where it lives.
 
 | # | Step | Status | Notes |
 |---|---|---|---|
-| 0.1 | Internal-only, or publicly reachable? | ⚠️ **Decide first** | The AAT host does not resolve publicly; the catalogue does. See "Exposure" in the README. Shapes 4.x and whether APIM routing work is needed. |
+| 0.1 | Internal-only, or publicly reachable? | ✅ **Publicly reachable, in demo** | Demo needs no VPN — that is what demo is for. Two things require it: consumers reach Try-it-out from the public catalogue at `hmcts.github.io`, and CP SIT pushes recordings in over `/admin/recordings` |
+| 0.2 | Demo host, DNS, Front Door, WAF exclusions | ○ To raise | `apim-try-slc.demo.platform.hmcts.net`. The Flux overlay in `platform-prs/` already sets it; the DNS and Front Door entries are separate PRs against `azure-public-dns` and `azure-platform-terraform`, following what `apim-marketplace-web` did for its demo host |
+| 0.3 | Restrict `/admin/**` at the edge | ○ To do | The read API is public by design; the ingest path should not be. Allow-list HMCTS and CP egress rather than exposing it alongside |
+
+> **A production service now depends on a demo one.** The production `service-api-marketplace`
+> calls a **demo-tier APIM** to generate the API keys a developer uses against this sandbox. Demo
+> carries no production SLA and is where platform changes get tried out, so if demo APIM is
+> unavailable, production key issuance fails. Worth an explicit decision rather than discovering it
+> during an incident.
+>
+> Also unconfirmed: [CP APIM vs CNP APIM](https://hmcts.atlassian.net/wiki/spaces/AMP/pages/323486422/CP+APIM+vs+CNP+APIM+Subscriptions+Key+Vaults)
+> lists SDS APIM instances for **sbox and preview only**. Whether a demo instance exists has not
+> been verified from this repo.
 
 ## Phase 1 — Repo
 
@@ -87,7 +104,8 @@ Status: ✅ Done · ⚠️ Decide first · ○ To do
 | 4.3 | Image policy and repository | ○ To raise | Written. Prefer regenerating: `./add-image-policies.sh apim apim try-slc hmctsprod` — the trailing registry is required, the script still defaults to `hmctspublic` |
 | 4.4 | Add to `apps/apim/base/kustomization.yaml` | ○ To raise | Under `resources`. Note the env bases take `patches` instead — adding to the wrong key silently does nothing |
 | 4.5 | Env patches (`aat.yaml`, `sbox.yaml`, `demo.yaml`) | ○ To raise | Written. **No preview patch** — `apps/apim/preview/base` does not include the HelmReleases at all; PR environments are Jenkins-deployed |
-| 4.7 | Prod overlay | ⚠️ Out of scope | `apps/apim/prod/` does not exist for this product, and neither existing component is in `environment-approvals.yml` |
+| 4.7 | Prod overlay | ⛔ **Never** | Demo is the last environment for this component. Not blocked, not deferred — not wanted. See Phase 0 |
+| 4.8 | Demo patch `apps/apim/apim-try-slc/demo.yaml` | ○ To raise | Written, in `platform-prs/`. Sets the public demo host and the vault mounts. This is the one that matters |
 | 4.6 | Workload identity | ✅ Done | `apim` service account already wired; chart uses `aadIdentityName: apim` |
 
 ## Phase 5 — First build and verify
