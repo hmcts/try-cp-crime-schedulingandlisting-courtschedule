@@ -19,7 +19,7 @@ spring:
   config:
     import: "optional:configtree:/mnt/secrets/apim/,optional:configtree:/mnt/secrets/apim-sbox/"
   application:
-    name: try-it-now-cp-crime-schedulingandlisting-courtschedule
+    name: try-cp-crime-schedulingandlisting-courtschedule
   datasource:
     url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DATABASE:tryitnow}
     username: ${POSTGRES_USER:postgres}
@@ -47,7 +47,7 @@ azure:
 auth:
   mode: ENFORCE
   tenant-id: ${DEMO_TENANT_ID:00000000-0000-0000-0000-0000000000aa}
-  audience: ${DEMO_AUDIENCE:api://try-it-now-cp-crime-schedulingandlisting-courtschedule}
+  audience: ${DEMO_AUDIENCE:api://try-cp-crime-schedulingandlisting-courtschedule}
   issuer: ${DEMO_ISSUER:https://try-it-now.apim.hmcts.internal/00000000-0000-0000-0000-0000000000aa/v2.0}
   clock-skew-seconds: 60
 

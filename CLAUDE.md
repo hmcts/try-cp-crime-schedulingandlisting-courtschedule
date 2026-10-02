@@ -1,4 +1,4 @@
-## Repo: try-it-now-cp-crime-schedulingandlisting-courtschedule
+## Repo: try-cp-crime-schedulingandlisting-courtschedule
 
 Sandbox ("Try It Now") implementation of the Scheduling and Listing Court Schedule API. Serves
 contract-checked examples — committed fixtures as the floor, recordings captured from a lower

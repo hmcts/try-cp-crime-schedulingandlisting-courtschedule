@@ -1,4 +1,4 @@
-# try-it-now-cp-crime-schedulingandlisting-courtschedule
+# try-cp-crime-schedulingandlisting-courtschedule
 
 A sandbox implementation of the **Scheduling and Listing Court Schedule API**, so a prospective
 consumer can call the API and see real response shapes *before* requesting access to the live one.
@@ -44,7 +44,7 @@ flowchart LR
   end
 
   subgraph CNP["CNP - namespace apim - PRODUCTION"]
-    TIN["try-it-now-cp-crime-<br/>schedulingandlisting-courtschedule<br/>Spring Boot"]
+    TIN["try-cp-crime-<br/>schedulingandlisting-courtschedule<br/>Spring Boot"]
     STUB[("Postgres<br/>recordings + seeded fixtures")]
     TIN --> STUB
   end

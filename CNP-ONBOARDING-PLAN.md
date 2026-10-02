@@ -1,6 +1,6 @@
 # CNP Onboarding Plan — apim/tryitnow-slc
 
-Service: `try-it-now-cp-crime-schedulingandlisting-courtschedule`
+Service: `try-cp-crime-schedulingandlisting-courtschedule`
 Product: `apim` · Component: `tryitnow-slc`
 
 Status: ✅ Done · ⚠️ Decide first · ○ To do
@@ -20,10 +20,10 @@ Status: ✅ Done · ⚠️ Decide first · ○ To do
 
 | What | Name |
 |---|---|
-| GitHub repo | `try-it-now-cp-crime-schedulingandlisting-courtschedule` |
+| GitHub repo | `try-cp-crime-schedulingandlisting-courtschedule` |
 | GitHub topic | `jenkins-cft-j-z` |
 | Jenkins product / component | `apim` / `tryitnow-slc` |
-| Jenkins job path | `HMCTS_j_to_z/try-it-now-cp-crime-schedulingandlisting-courtschedule` |
+| Jenkins job path | `HMCTS_j_to_z/try-cp-crime-schedulingandlisting-courtschedule` |
 | Kubernetes namespace | `apim` |
 | Helm release / chart | `apim-tryitnow-slc` |
 | Docker image | `hmctsprod.azurecr.io/apim/tryitnow-slc:{tag}` |

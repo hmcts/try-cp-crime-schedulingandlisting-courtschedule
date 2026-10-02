@@ -12,7 +12,7 @@ this service ships exactly the way they do.
 | File | Change |
 |---|---|
 | `deployment-controls.yml` | Add the entry in `deployment-controls.snippet.yml`, keeping the file's alphabetical order by repo URL |
-| `terraform-infra-approvals/try-it-now-cp-crime-schedulingandlisting-courtschedule.json` | New file. Whitelists only what `infrastructure/` actually creates — the postgres module and vault secrets. It does **not** include `cnp-module-key-vault`: the vault is created by `service-api-marketplace` and consumed here as a data source |
+| `terraform-infra-approvals/try-cp-crime-schedulingandlisting-courtschedule.json` | New file. Whitelists only what `infrastructure/` actually creates — the postgres module and vault secrets. It does **not** include `cnp-module-key-vault`: the vault is created by `service-api-marketplace` and consumed here as a data source |
 
 Without the approvals file the pipeline refuses the terraform plan, which is the state
 `web-api-marketplace` is in today.

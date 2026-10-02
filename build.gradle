@@ -103,7 +103,7 @@ tasks.check.dependsOn(integration)
 sonarqube {
   properties {
     property "sonar.projectName", "HMCTS :: Try It Now :: Court Schedule"
-    property "sonar.projectKey", "uk.gov.hmcts.cp:try-it-now-cp-crime-schedulingandlisting-courtschedule"
+    property "sonar.projectKey", "uk.gov.hmcts.cp:try-cp-crime-schedulingandlisting-courtschedule"
     property "sonar.coverage.exclusions", "**/Application.java,**/exceptions/**"
   }
 }
