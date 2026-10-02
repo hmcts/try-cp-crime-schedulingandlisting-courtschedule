@@ -1,0 +1,10 @@
+#!groovy
+@Library('Infrastructure') _
+
+properties([
+    parameters([
+        choice(name: 'ENVIRONMENT', defaultValue: 'sandbox', choices: 'sandbox', description: 'Environment to deploy infrastructure to'),
+    ])
+])
+
+withParameterizedPipeline('java', 'apim', 'tryitnow-slc', params.ENVIRONMENT, 'sandbox') {}

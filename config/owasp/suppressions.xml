@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
+  <!--Please add all the false positives under the below section-->
+  <suppress>
+    <notes>False Positive
+      <![CDATA[file name: jackson-databind-2.15.2.jar]]>
+    </notes>
+    <packageUrl regex="true">^pkg:maven/com\.fasterxml\.jackson\.core/jackson\-databind@.*$</packageUrl>
+    <cve>CVE-2023-35116</cve>
+  </suppress>
+  <!--CVE present in log4j-api 2.25.4 (BOM version); no fix available-->
+  <suppress>
+    <notes>CVE-2026-49844 affects log4j-api; no patched version available from Spring Boot BOM</notes>
+    <packageUrl regex="true">^pkg:maven/org\.apache\.logging\.log4j/log4j\-api@.*$</packageUrl>
+    <cve>CVE-2026-49844</cve>
+  </suppress>
+  <!--Tomcat embedded in spring-boot-starter-web; version governed by Spring Boot BOM-->
+  <suppress>
+    <notes>Tomcat 11.0.22 CVEs - version managed by Spring Boot BOM</notes>
+    <packageUrl regex="true">^pkg:maven/org\.apache\.tomcat\.embed/.*@.*$</packageUrl>
+    <cve>CVE-2026-53434</cve>
+  </suppress>
+  <suppress>
+    <notes>Tomcat 11.0.22 CVEs - version managed by Spring Boot BOM</notes>
+    <packageUrl regex="true">^pkg:maven/org\.apache\.tomcat\.embed/.*@.*$</packageUrl>
+    <cve>CVE-2026-55276</cve>
+  </suppress>
+  <suppress>
+    <notes>Tomcat 11.0.22 CVEs - version managed by Spring Boot BOM</notes>
+    <packageUrl regex="true">^pkg:maven/org\.apache\.tomcat\.embed/.*@.*$</packageUrl>
+    <cve>CVE-2026-59083</cve>
+  </suppress>
+  <suppress>
+    <notes>Tomcat 11.0.22 CVEs - version managed by Spring Boot BOM</notes>
+    <packageUrl regex="true">^pkg:maven/org\.apache\.tomcat\.embed/.*@.*$</packageUrl>
+    <cve>CVE-2026-59084</cve>
+  </suppress>
+  <suppress>
+    <notes>Tomcat 11.0.22 CVEs - version managed by Spring Boot BOM</notes>
+    <packageUrl regex="true">^pkg:maven/org\.apache\.tomcat\.embed/.*@.*$</packageUrl>
+    <cve>CVE-2026-53404</cve>
+  </suppress>
+  <suppress>
+    <notes>Tomcat 11.0.22 CVEs - version managed by Spring Boot BOM</notes>
+    <packageUrl regex="true">^pkg:maven/org\.apache\.tomcat\.embed/.*@.*$</packageUrl>
+    <cve>CVE-2026-55955</cve>
+  </suppress>
+  <suppress>
+    <notes>Tomcat 11.0.22 CVEs - version managed by Spring Boot BOM</notes>
+    <packageUrl regex="true">^pkg:maven/org\.apache\.tomcat\.embed/.*@.*$</packageUrl>
+    <cve>CVE-2026-55956</cve>
+  </suppress>
+  <suppress>
+    <notes>Tomcat 11.0.22 CVEs - version managed by Spring Boot BOM</notes>
+    <packageUrl regex="true">^pkg:maven/org\.apache\.tomcat\.embed/.*@.*$</packageUrl>
+    <cve>CVE-2026-50229</cve>
+  </suppress>
+  <suppress>
+    <notes>Tomcat 11.0.22 CVEs - version managed by Spring Boot BOM</notes>
+    <packageUrl regex="true">^pkg:maven/org\.apache\.tomcat\.embed/.*@.*$</packageUrl>
+    <cve>CVE-2026-66299</cve>
+  </suppress>
+  <!--End of false positives section -->
+</suppressions>

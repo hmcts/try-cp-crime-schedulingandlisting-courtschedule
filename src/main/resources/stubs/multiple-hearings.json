@@ -1,0 +1,36 @@
+{
+  "courtSchedule": [
+    {
+      "hearings": [
+        {
+          "hearingId": "HRG-200001",
+          "hearingType": "Preliminary",
+          "hearingDescription": "First hearing",
+          "listNote": "No special requirements",
+          "courtSittings": [
+            {
+              "sittingStart": "2026-04-07T10:00:00Z",
+              "sittingEnd": "2026-04-07T11:30:00Z",
+              "judiciaryId": "123e4567-e89b-12d3-a456-426614174000",
+              "courtHouse": "223e4567-e89b-12d3-a456-426614174111",
+              "courtRoom": "b7a9cb95-4f7c-4aba-b9a2-8cb1ad3330b2"
+            }
+          ]
+        },
+        {
+          "hearingId": "HRG-200002",
+          "hearingType": "Sentencing",
+          "hearingDescription": "Sentencing following conviction",
+          "listNote": "Pre-sentence report required",
+          "courtSittings": [],
+          "weekCommencing": {
+            "startDate": "2026-05-11",
+            "endDate": "2026-05-17",
+            "durationInWeeks": 1,
+            "courtHouse": "223e4567-e89b-12d3-a456-426614174111"
+          }
+        }
+      ]
+    }
+  ]
+}

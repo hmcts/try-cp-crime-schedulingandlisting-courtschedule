@@ -1,0 +1,23 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: apim-tryitnow-slc
+  description: "Try It Now sandbox for the Scheduling and Listing Court Schedule API — serves contract-typed stub responses, no CP connectivity"
+  annotations:
+    jenkins.io/job-full-name: "cft:HMCTS_j_to_z/try-it-now-cp-crime-schedulingandlisting-courtschedule"
+    github.com/project-slug: 'hmcts/try-it-now-cp-crime-schedulingandlisting-courtschedule'
+  tags:
+    - java
+    - sandbox
+  links:
+    - url: https://hmcts-reform.slack.com/app_redirect?channel=api-marketplace-tech
+      title: "#api-marketplace-tech on Slack"
+      icon: chat
+    - url: https://hmcts.github.io/api-cp-crime-schedulingandlisting-courtschedule/
+      title: "API contract (authoritative)"
+      icon: docs
+spec:
+  type: service
+  system: apim
+  lifecycle: experimental
+  owner: group:dts-api-marketplace

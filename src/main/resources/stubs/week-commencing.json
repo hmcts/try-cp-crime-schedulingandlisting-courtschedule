@@ -1,0 +1,21 @@
+{
+  "courtSchedule": [
+    {
+      "hearings": [
+        {
+          "hearingId": "HRG-123906",
+          "hearingType": "Trial",
+          "hearingDescription": "Trial not yet allocated to a sitting",
+          "listNote": "Requires interpreter",
+          "courtSittings": [],
+          "weekCommencing": {
+            "startDate": "2026-02-16",
+            "endDate": "2026-02-22",
+            "durationInWeeks": 1,
+            "courtHouse": "223e4567-e89b-12d3-a456-426614174111"
+          }
+        }
+      ]
+    }
+  ]
+}

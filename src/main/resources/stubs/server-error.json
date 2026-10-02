@@ -1,0 +1,7 @@
+{
+  "error": "internal_server_error",
+  "message": "Scenario TIN-SERVERERROR-01: simulated backend failure. A real 500 from this sandbox would not name a scenario.",
+  "details": {},
+  "timestamp": "2026-01-01T00:00:00Z",
+  "traceId": "00000000-0000-0000-0000-000000000000"
+}

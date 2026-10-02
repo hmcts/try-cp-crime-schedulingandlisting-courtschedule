@@ -1,0 +1,9 @@
+{
+  "error": "invalid_request",
+  "message": "The supplied case URN is not in a recognised format.",
+  "details": {
+    "parameter": "case_urn"
+  },
+  "timestamp": "2026-01-01T00:00:00Z",
+  "traceId": "00000000-0000-0000-0000-000000000000"
+}

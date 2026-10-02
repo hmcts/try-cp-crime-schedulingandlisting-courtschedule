@@ -1,0 +1,10 @@
+# EDIT: one line added - ../apim-tryitnow-slc/apim-tryitnow-slc.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+  - ../../base/workload-identity
+  - ../apim-marketplace/apim-marketplace.yaml
+  - ../apim-marketplace-web/apim-marketplace-web.yaml
+  - ../apim-tryitnow-slc/apim-tryitnow-slc.yaml
+namespace: apim

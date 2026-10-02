@@ -1,0 +1,23 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: apim-tryitnow-slc
+spec:
+  values:
+    java:
+      ingressHost: apim-tryitnow-slc.aat.platform.hmcts.net
+      keyVaults:
+        apim:
+          secrets:
+            - name: tryitnow-slc-DEMO-SIGNING-KEY-JWK
+              alias: DEMO_SIGNING_KEY_JWK
+            - name: tryitnow-slc-POSTGRES-USER
+              alias: POSTGRES_USER
+            - name: tryitnow-slc-POSTGRES-PASS
+              alias: POSTGRES_PASS
+            - name: tryitnow-slc-POSTGRES-HOST
+              alias: POSTGRES_HOST
+            - name: tryitnow-slc-POSTGRES-PORT
+              alias: POSTGRES_PORT
+            - name: tryitnow-slc-POSTGRES-DATABASE
+              alias: POSTGRES_DATABASE

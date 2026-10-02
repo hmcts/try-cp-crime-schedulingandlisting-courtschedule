@@ -1,0 +1,23 @@
+{
+  "courtSchedule": [
+    {
+      "hearings": [
+        {
+          "hearingId": "HRG-123410",
+          "hearingType": "Trial",
+          "hearingDescription": "Trial of theft case",
+          "listNote": "Requires interpreter",
+          "courtSittings": [
+            {
+              "sittingStart": "2026-03-18T09:00:00Z",
+              "sittingEnd": "2026-03-18T12:00:00Z",
+              "judiciaryId": "123e4567-e89b-12d3-a456-426614174000",
+              "courtHouse": "223e4567-e89b-12d3-a456-426614174111",
+              "courtRoom": "b7a9cb95-4f7c-4aba-b9a2-8cb1ad3330b2"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

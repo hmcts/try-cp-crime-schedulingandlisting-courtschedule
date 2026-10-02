@@ -1,0 +1,88 @@
+server:
+  port: 8080
+  shutdown: "graceful"
+
+management:
+  endpoint:
+    health:
+      show-details: "always"
+  endpoints:
+    web:
+      # Kept at "/" to match the chart-java probe paths (/health, /info). Note this makes the
+      # actuator endpoints sit at the context root, which AuthorizationPolicy handles by listing
+      # them in PUBLIC_EXACT_PATHS - see the comment there before changing this value.
+      base-path: /
+      exposure:
+        include: health, info, prometheus
+
+spring:
+  config:
+    import: "optional:configtree:/mnt/secrets/apim/,optional:configtree:/mnt/secrets/apim-sbox/"
+  application:
+    name: try-it-now-cp-crime-schedulingandlisting-courtschedule
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DATABASE:tryitnow}
+    username: ${POSTGRES_USER:postgres}
+    password: ${POSTGRES_PASS:postgres}
+    hikari:
+      maximumPoolSize: 4
+  jpa:
+    open-in-view: false
+    hibernate:
+      # Flyway owns the schema. Hibernate must never alter it, or a mapping change would silently
+      # rewrite a table holding approved examples.
+      ddl-auto: none
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+azure:
+  application-insights:
+    instrumentation-key: ${rpe.AppInsightsInstrumentationKey:00000000-0000-0000-0000-000000000000}
+
+# This sandbox validates its own demo tokens with the SAME EntraTokenValidator the real service
+# uses. Nothing here points at a real Entra tenant - the issuer, audience and tenant below are this
+# service's own identifiers, so a demo token is worthless against any real API.
+auth:
+  mode: ENFORCE
+  tenant-id: ${DEMO_TENANT_ID:00000000-0000-0000-0000-0000000000aa}
+  audience: ${DEMO_AUDIENCE:api://try-it-now-cp-crime-schedulingandlisting-courtschedule}
+  issuer: ${DEMO_ISSUER:https://try-it-now.apim.hmcts.internal/00000000-0000-0000-0000-0000000000aa/v2.0}
+  clock-skew-seconds: 60
+
+demo:
+  # RSA private key (JWK JSON) used to sign demo tokens. Supplied from the apim-{env} key vault in
+  # every deployed environment. Blank means "generate an ephemeral key at startup" - acceptable for
+  # local development only; the service logs a loud warning and tokens die with the process.
+  signing-key-jwk: ${DEMO_SIGNING_KEY_JWK:}
+  token-ttl-seconds: 3600
+  # Where the published Swagger UI lives. Try-it-out is a browser fetch from this origin, so it must
+  # be allowed by CORS or every call fails in the browser while curl succeeds.
+  allowed-origins: "https://hmcts.github.io"
+
+# Ingest and publish are guarded by REAL Entra tokens from the corporate tenant, not by the demo
+# credentials above - those are published in the catalogue and must never open a write path into a
+# deployed environment. Blank tenant or audience fails startup, exactly as the demo realm does: a
+# blank audience would accept a token minted for any resource.
+admin:
+  auth:
+    tenant-id: ${ADMIN_TENANT_ID:}
+    audience: ${ADMIN_AUDIENCE:}
+    issuer: ${ADMIN_ISSUER:}
+    jwks-uri: ${ADMIN_JWKS_URI:}
+    clock-skew-seconds: 60
+    # Separate roles so the identity that captures cannot also be the one that approves. Ingest is
+    # automated and frequent; publish is the step that puts data on a public endpoint.
+    write-role: ${ADMIN_ROLE_WRITE:app.recordings.write}
+    publish-role: ${ADMIN_ROLE_PUBLISH:app.recordings.publish}
+    # Turns the whole admin surface off. Set true only where no Entra app registration exists yet -
+    # it makes /admin/** answer 503 rather than leaving it unguarded.
+    disabled: ${ADMIN_DISABLED:false}
+
+recording:
+  api-id: api-cp-crime-schedulingandlisting-courtschedule
+  operation-id: getCourtScheduleByCaseUrn
+  # Committed fixtures are seeded on first boot so a fresh environment is never empty. They are
+  # marked recorded_from=fixture and are indistinguishable from a recording thereafter.
+  seed-fixtures: ${RECORDING_SEED_FIXTURES:true}

@@ -1,0 +1,51 @@
+# Scenarios this sandbox serves, one per case URN.
+#
+# Every body below is deserialised into the generated api-cp-* model at startup with unknown-property
+# checking on (see ScenarioCatalog), so this file cannot drift from the published contract without
+# failing the build.
+#
+# Bodies are modelled on the responses documented in the AMS handover pack, section 5.1, restricted
+# to the fields the contract actually defines. Nothing here was captured from a live environment and
+# no real case data is present.
+scenarios:
+  - id: allocated
+    caseUrn: "TIN-ALLOCATED-01"
+    status: 200
+    body: allocated.json
+    summary: "Allocated hearing — one sitting with a court room, judge and start/end times."
+
+  - id: week-commencing
+    caseUrn: "TIN-WEEKCOMM-01"
+    status: 200
+    body: week-commencing.json
+    summary: "Unallocated hearing — empty courtSittings with a weekCommencing block. Valid, not a fault."
+
+  - id: multiple-hearings
+    caseUrn: "TIN-MULTI-01"
+    status: 200
+    body: multiple-hearings.json
+    summary: "Two hearings on one case, mixing an allocated sitting and a week-commencing listing."
+
+  - id: empty-schedule
+    caseUrn: "TIN-EMPTY-01"
+    status: 200
+    body: empty-schedule.json
+    summary: "Case exists but has no hearings listed — an empty courtSchedule array, still a 200."
+
+  - id: not-found
+    caseUrn: "TIN-NOTFOUND-01"
+    status: 404
+    body: not-found.json
+    summary: "Case URN has no schedule. Any unrecognised URN answers this way too."
+
+  - id: bad-request
+    caseUrn: "TIN-BADREQUEST-01"
+    status: 400
+    body: bad-request.json
+    summary: "Malformed case URN rejected by the API."
+
+  - id: server-error
+    caseUrn: "TIN-SERVERERROR-01"
+    status: 500
+    body: server-error.json
+    summary: "Backend failure, so a consumer can exercise its own 5xx retry handling."
