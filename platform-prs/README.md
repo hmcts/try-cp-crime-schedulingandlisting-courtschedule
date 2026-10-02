@@ -28,8 +28,10 @@ New folder `apps/apim/apim-tryitnow-slc/` containing:
 | `image-policy.yaml` | Selects the newest `prod-{sha}-{timestamp}` tag. `prod-automated: disabled`, matching both existing components |
 | `aat.yaml`, `demo.yaml`, `sbox.yaml` | Per-environment ingress host and vault mounts |
 
-Then four one-line edits to existing kustomizations — the files here are the **result**, with the
-added line marked at the top:
+Then four one-line edits to existing kustomizations. **Apply the marked line to whatever the file
+says at the time — do not copy these files over the top.** They were verified identical to the live
+versions apart from the addition on 2 October 2026, but they are a snapshot of someone else's repo
+and copying one wholesale would silently revert any change made since:
 
 | File | Added |
 |---|---|
