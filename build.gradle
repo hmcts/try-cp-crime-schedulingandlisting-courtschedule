@@ -10,6 +10,7 @@ plugins {
     See https://github.com/hmcts/gradle-java-plugin
  */
   id 'uk.gov.hmcts.java' version '0.12.70'
+  id 'org.openapi.generator' version '7.19.0'
 }
 
 application {
@@ -223,13 +224,10 @@ dependencies {
   testImplementation group: 'io.rest-assured', name: 'rest-assured', version: '6.0.1'
 }
 
-// NOTE: there is deliberately no springBoot.buildInfo block here.
-//
-// The CNP Jenkins pipeline writes its own src/main/resources/META-INF/build-info.properties before
-// calling assemble, carrying build.version, build.number, build.commit and build.date - richer than
-// anything Gradle can generate, because it knows the commit and the build number. Adding
-// springBoot.buildInfo produces a second file at the same path and processResources fails the build
-// with "Entry META-INF/build-info.properties is a duplicate".
+// Generates META-INF/build-info.properties, which is the only reason GET /info returns anything
+// other than {}. Copied from the spring-actuator.gradle that
+// service-cp-crime-hearing-results-document-subscription applies, so /info carries the same fields
+// here as it does there.
 //
 // Setting duplicatesStrategy hides the failure but the generated file wins, discarding the
 // pipeline's commit and build number. So the right answer is to let the platform supply it.
@@ -245,6 +243,58 @@ bootJar {
     attributes('Implementation-Version': project.version.toString())
   }
 }
+
+// The try-it-now contracts. Two specs, shared by every try-it-now service: the public one a
+// consumer sees alongside the api-cp-* contract, and the internal admin one that is not published
+// to APIM. Both generate interfaces this service implements, the same way it implements
+// CourtScheduleApi from the api-cp jar.
+//
+// THE PACKAGE MUST NOT BE uk.gov.hmcts.cp.openapi. Every api-cp-* artefact generates into
+// uk.gov.hmcts.cp.openapi.{api,model}, and the SLC contract jar is already on this classpath - a
+// second generator writing into the same package would collide with it. tryitnow.openapi keeps
+// them apart.
+// The two specs also generate into packages distinct from EACH OTHER. The generator emits a
+// helper class (ApiUtil) into whichever api package it is given, so pointing both at one package
+// produces a duplicate class and the build fails - and it fails confusingly, because javac aborts
+// annotation processing on a duplicate and Lombok's generated members then look missing everywhere
+// else. The split also says which surface is which.
+
+def contractSpecs = [
+  tryItNowPublic: ['try-it-now-public.openapi.yml', 'uk.gov.hmcts.cp.tryitnow.openapi'],
+  tryItNowAdmin : ['try-it-now-admin.openapi.yml', 'uk.gov.hmcts.cp.tryitnow.admin.openapi'],
+]
+
+contractSpecs.each { taskSuffix, spec ->
+  def (specFile, basePackage) = spec
+  tasks.register("generate${taskSuffix.capitalize()}Api", org.openapitools.generator.gradle.plugin.tasks.GenerateTask) {
+    generatorName = 'spring'
+    inputSpec = "$projectDir/contracts/$specFile"
+    outputDir = "$buildDir/generated/$taskSuffix"
+    apiPackage = "${basePackage}.api"
+    modelPackage = "${basePackage}.model"
+    generateApiTests = false
+    generateModelTests = false
+    generateApiDocumentation = false
+    generateModelDocumentation = false
+    configOptions = [
+      interfaceOnly   : 'true',
+      useSpringBoot3  : 'true',
+      useJakartaEe    : 'true',
+      openApiNullable : 'false',
+      skipDefaultInterface: 'true',
+      documentationProvider: 'none',
+    ]
+  }
+  sourceSets.main.java.srcDir "$buildDir/generated/$taskSuffix/src/main/java"
+  tasks.named('compileJava') { dependsOn "generate${taskSuffix.capitalize()}Api" }
+}
+
+// Generated sources are not ours to style-check.
+tasks.named('checkstyleMain') {
+  exclude '**/tryitnow/**'
+  exclude '**/org/openapitools/**'
+}
+
 
 // Gradle 7.x issue, workaround from: https://github.com/gradle/gradle/issues/17236#issuecomment-894768083
 rootProject.tasks.named("processSmokeTestResources") {

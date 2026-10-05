@@ -1,0 +1,351 @@
+openapi: 3.0.3
+
+info:
+  title: Try It Now — admin API (internal)
+  description: >-
+    How captured examples get into a try-it-now sandbox. **Internal. Not published to Azure APIM,
+    and not part of the catalogue entry a consumer sees.**
+
+
+    Like the public contract, this one is **shared by every try-it-now service** — the admin surface
+    is identical whatever API is being demonstrated.
+
+
+    ## Why this is a separate contract
+
+    The public contract's demo credentials are printed in the catalogue. Everything reachable with
+    them must be read-only and safe to expose. This API writes data that ends up on a public
+    endpoint, so it is deliberately a different contract, a different ingress and a different
+    control.
+
+
+    ## How access is controlled
+
+    **No credential is declared here**, because the intended deployment restricts these paths at
+    the ingress rather than in the application. That is a deliberate trade and it has two
+    consequences worth stating in the contract itself rather than discovering later:
+
+
+    1. **Reachability follows the ingress.** If the admin paths are bound to an internal-only host,
+       a caller outside the cluster — including one in a CP environment — cannot reach them at all.
+    2. **There is no caller identity.** `recordedBy` and `publishedBy` can then only be populated
+       from the `X-Recorded-By` header below, which is caller-supplied and therefore a label, not
+       evidence. Where attribution has to be trustworthy, the publish operation should keep a real
+       token.
+
+
+    The service's own implementation may still require a token; this contract does not oblige it
+    either way.
+  version: 1.0.0
+  contact:
+    email: no-reply@hmcts.net
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: /
+    description: Internal ingress only — never the public catalogue host
+
+tags:
+  - name: recordings
+    description: Capture, review and publish examples
+
+paths:
+  /admin/recordings:
+    post:
+      summary: Offer a captured response to the sandbox
+      description: >-
+        Validates the payload against the contract the sandbox implements, then stores it
+        **unpublished**. An unpublished recording serves nothing.
+
+
+        This is the gate the whole design turns on: the body is deserialised into the generated
+        model of the demonstrated API with unknown properties rejected. A capture that does not fit
+        the published contract is refused with the offending field named, rather than served.
+      operationId: ingestRecording
+      tags: [recordings]
+      parameters:
+        - $ref: '#/components/parameters/RecordedBy'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IngestRequest'
+      responses:
+        '201':
+          description: Stored, unpublished
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Recording'
+        '400':
+          description: >-
+            The payload does not match the contract, or a field is missing. The message names the
+            offending field.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: >-
+            The admin surface is disabled in this environment. It fails closed rather than running
+            unguarded when it is only half-configured.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    get:
+      summary: List recordings
+      description: >-
+        Returns the body as well as the metadata, because the reviewer deciding whether something
+        is fit to be public has to read what it actually contains.
+      operationId: listRecordings
+      tags: [recordings]
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: Filter by lifecycle state. Omitted returns everything.
+          schema:
+            $ref: '#/components/schemas/RecordingStatus'
+      responses:
+        '200':
+          description: Matching recordings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Recording'
+        '503':
+          description: The admin surface is disabled in this environment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/recordings/{id}/publish:
+    post:
+      summary: Make a recording live
+      description: >-
+        The step that puts data on a publicly readable endpoint. Separate from ingest on purpose:
+        ingest checks the **shape**, publish is where a human checks the **content**.
+
+
+        Takes effect immediately — no redeploy. At most one published recording may exist per case
+        URN, so publishing replaces whatever was live for that URN.
+      operationId: publishRecording
+      tags: [recordings]
+      parameters:
+        - $ref: '#/components/parameters/RecordingId'
+        - $ref: '#/components/parameters/RecordedBy'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublishRequest'
+      responses:
+        '200':
+          description: Published, and serving
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Recording'
+        '400':
+          description: Missing or invalid field
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No recording with that id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: The admin surface is disabled in this environment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/recordings/{id}/archive:
+    post:
+      summary: Take a recording out of service
+      description: >-
+        Stops it being served while keeping the row. A rejected or superseded example is archived
+        rather than deleted, so the provenance of what was once public survives.
+      operationId: archiveRecording
+      tags: [recordings]
+      parameters:
+        - $ref: '#/components/parameters/RecordingId'
+        - $ref: '#/components/parameters/RecordedBy'
+      responses:
+        '200':
+          description: Archived
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Recording'
+        '404':
+          description: No recording with that id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: The admin surface is disabled in this environment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+
+  parameters:
+    RecordingId:
+      name: id
+      in: path
+      required: true
+      description: The recording's identifier, as returned by ingest.
+      schema:
+        type: string
+        format: uuid
+
+    RecordedBy:
+      name: X-Recorded-By
+      in: header
+      required: false
+      description: >-
+        Who to attribute the action to. **Caller-supplied, so it is a label rather than evidence.**
+        Where the deployment guards these paths with a real token instead, the service should take
+        the identity from the validated token and ignore this header.
+      schema:
+        type: string
+
+  schemas:
+
+    IngestRequest:
+      type: object
+      description: A captured response being offered to the sandbox.
+      required: [caseUrn, httpStatus, body, recordedFrom]
+      properties:
+        caseUrn:
+          type: string
+          description: The URN a consumer will call to reach this example.
+          minLength: 1
+        httpStatus:
+          type: integer
+          format: int32
+          minimum: 100
+          maximum: 599
+          description: The status the real service answered with.
+        body:
+          type: string
+          minLength: 1
+          description: >-
+            The response body as JSON **text**, not a nested object. This is deliberate and
+            load-bearing: the exact characters validated here are the exact characters stored and
+            later served. Modelling it as an object would mean parsing and re-serialising, which
+            reorders keys and normalises whitespace — so what a reviewer approved would not be what
+            a consumer receives.
+        recordedFrom:
+          $ref: '#/components/schemas/SourceEnvironment'
+        summary:
+          type: string
+          description: One line describing what this example demonstrates.
+
+    PublishRequest:
+      type: object
+      description: Makes a stored recording live.
+      required: [scenarioId]
+      properties:
+        scenarioId:
+          type: string
+          minLength: 1
+          description: Short identifier shown on `/scenarios`, for example `allocated`.
+        summary:
+          type: string
+          description: Overrides the summary given at ingest.
+
+    Recording:
+      type: object
+      description: A stored recording, as the admin API returns it.
+      required: [id, caseUrn, httpStatus, status, recordedFrom, recordedAt, body]
+      properties:
+        id:
+          type: string
+          format: uuid
+        caseUrn:
+          type: string
+        httpStatus:
+          type: integer
+          format: int32
+        status:
+          $ref: '#/components/schemas/RecordingStatus'
+        scenarioId:
+          type: string
+          nullable: true
+          description: Set at publish. Null while unpublished.
+        summary:
+          type: string
+          nullable: true
+        recordedFrom:
+          $ref: '#/components/schemas/SourceEnvironment'
+        recordedAt:
+          type: string
+          format: date-time
+        recordedBy:
+          type: string
+          nullable: true
+          description: >-
+            Null where the deployment guards these paths at the ingress rather than with a token,
+            and no `X-Recorded-By` header was sent.
+        publishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        publishedBy:
+          type: string
+          nullable: true
+        body:
+          type: string
+          description: The stored JSON text, byte for byte as it was ingested.
+
+    RecordingStatus:
+      type: string
+      description: Lifecycle state. Only `PUBLISHED` is served to consumers.
+      enum: [UNPUBLISHED, PUBLISHED, ARCHIVED]
+
+    SourceEnvironment:
+      type: string
+      description: >-
+        Which non-live CP environment the example was captured from. Held so a payload that looks
+        wrong later can be traced, and so nobody mistakes a lower-environment capture for live data.
+      enum: [sit, dev, ste]
+
+    ErrorResponse:
+      type: object
+      description: >-
+        Mirrors the error shape the `api-cp-*` contracts use, so a caller sees one error format
+        across the sandbox rather than two.
+      properties:
+        error:
+          type: string
+          description: Short machine-readable code.
+        message:
+          type: string
+          description: Human-readable detail. Names the offending field where there is one.
+        details:
+          type: object
+          additionalProperties: true
+        timestamp:
+          type: string
+          format: date-time
+        traceId:
+          type: string
