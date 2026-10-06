@@ -154,13 +154,27 @@ dependencies {
   // models are the ONLY definition of the response shape - every stub in src/main/resources/stubs
   // is deserialised into these types by ScenarioCatalogContractTest, so a stub that drifts from the
   // published contract fails the build rather than silently serving a wrong body.
-  implementation "uk.gov.hmcts.cp:api-cp-crime-schedulingandlisting-courtschedule:1.1.0"
+  //
+  // The exclusions below are not optional. The published runtimeElements variant of api-cp-* declares
+  // openapi-generator-core, swagger-parser and swagger-annotations as runtime dependencies. The
+  // OpenAPI generator is a BUILD-time tool and has no business on a consumer's runtime classpath.
+  // Its apiElements variant declares none of them, which is why compileJava is unaffected and bootJar
+  // - the first task to resolve runtimeClasspath - is where it surfaces. Two of those coordinates are
+  // not resolvable on the CNP Jenkins agent, so the build is green locally and red in the pipeline.
+  // They also drag in swagger-parser v2 and v3 and swagger-core 1.6.x for no runtime purpose.
+  // The real fix belongs upstream in api-cp-*; until it lands, exclude them here. Do not re-add.
+  implementation("uk.gov.hmcts.cp:api-cp-crime-schedulingandlisting-courtschedule:1.1.0") {
+    exclude group: 'org.openapitools',     module: 'openapi-generator-core'
+    exclude group: 'io.swagger.parser.v3', module: 'swagger-parser'
+    exclude group: 'io.swagger.core.v3',   module: 'swagger-annotations'
+  }
 
-  // Resolves the @Schema/@Parameter annotations on the generated api-cp-* interface/models at
-  // compile time - without it -Werror fails on "unknown enum constant" for their RequiredMode/
-  // ParameterIn values. Not needed at runtime (the generated classes already carry them baked in).
-  compileOnly "io.swagger.core.v3:swagger-annotations-jakarta:2.2.55"
-  testCompileOnly "io.swagger.core.v3:swagger-annotations-jakarta:2.2.55"
+  // Resolves the @Schema/@Parameter annotations on the generated api-cp-* interface/models - without
+  // it -Werror fails on "unknown enum constant" for their RequiredMode/ParameterIn values. Same
+  // io.swagger.v3.oas.annotations package as the non-jakarta swagger-annotations excluded above, and
+  // it already resolves on the Jenkins agent. Declared implementation rather than compileOnly so the
+  // annotations stay on the runtime classpath for anything that reflects over the generated types.
+  implementation "io.swagger.core.v3:swagger-annotations-jakarta:2.2.55"
 
   // Mints the demo access tokens AND verifies them. Same library the real service uses, so the
   // copied EntraTokenValidator is byte-identical to service-cp-crime-scheduleandlist-courtschedule.
@@ -209,26 +223,20 @@ dependencies {
   testImplementation group: 'io.rest-assured', name: 'rest-assured', version: '6.0.1'
 }
 
-// Generates META-INF/build-info.properties, which is the only reason GET /info returns anything
-// other than {}. Copied from the spring-actuator.gradle that
-// service-cp-crime-hearing-results-document-subscription applies, so /info carries the same fields
-// here as it does there.
+// NOTE: there is deliberately no springBoot.buildInfo block here.
 //
-// ARTEFACT_VERSION is what the CNP pipeline passes; project.version is the local fallback.
-springBoot {
-  buildInfo {
-    properties {
-      version = System.getProperty('ARTEFACT_VERSION') ?: project.version
-    }
-  }
-}
-
-// The build timestamp is the point of this file, so it must never be served from a cache or
-// reported up-to-date - that would pin /info to whenever the task last genuinely ran.
-tasks.named('bootBuildInfo') {
-  outputs.upToDateWhen { false }
-  outputs.cacheIf { false }
-}
+// The CNP Jenkins pipeline writes its own src/main/resources/META-INF/build-info.properties before
+// calling assemble, carrying build.version, build.number, build.commit and build.date - richer than
+// anything Gradle can generate, because it knows the commit and the build number. Adding
+// springBoot.buildInfo produces a second file at the same path and processResources fails the build
+// with "Entry META-INF/build-info.properties is a duplicate".
+//
+// Setting duplicatesStrategy hides the failure but the generated file wins, discarding the
+// pipeline's commit and build number. So the right answer is to let the platform supply it.
+//
+// Consequence: a locally built jar has no build-info, so GET /info returns {}. Only a
+// pipeline-built artefact has one. src/test/resources/META-INF/build-info.properties exists so the
+// endpoint is still covered by a test.
 
 bootJar {
   archiveFileName = "apim-try-slc.jar"

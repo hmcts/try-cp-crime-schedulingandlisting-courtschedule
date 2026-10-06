@@ -60,5 +60,23 @@
     <packageUrl regex="true">^pkg:maven/org\.apache\.tomcat\.embed/.*@.*$</packageUrl>
     <cve>CVE-2026-66299</cve>
   </suppress>
+  <!--CVE-2026-42154 is a missing length check on the /api/v1/read remote-read endpoint of Prometheus
+      THE SERVER (Go, github.com/prometheus/prometheus, fixed in 3.5.3 and 3.11.3). This service ships
+      the Java client library instead - github.com/prometheus/client_java, as
+      io.prometheus:prometheus-metrics-* 1.7.0 via micrometer-registry-prometheus. It exposes a scrape
+      endpoint and implements no remote-read API, so the vulnerable code path does not exist here.
+      Different project, different language, no shared code: dependency-check matches on the
+      "prometheus" product name, and our 1.7.0 falls inside the server's "< 3.5.3" range by coincidence.
+      Re-check this if the service ever gains a real Prometheus server dependency.-->
+  <suppress>
+    <notes>CVE-2026-42154 affects the Prometheus server (Go), not the io.prometheus Java client</notes>
+    <packageUrl regex="true">^pkg:maven/io\.prometheus/.*@.*$</packageUrl>
+    <cve>CVE-2026-42154</cve>
+  </suppress>
+  <suppress>
+    <notes>CVE-2026-42154 affects the Prometheus server (Go), not micrometer's Prometheus registry</notes>
+    <packageUrl regex="true">^pkg:maven/io\.micrometer/micrometer\-registry\-prometheus@.*$</packageUrl>
+    <cve>CVE-2026-42154</cve>
+  </suppress>
   <!--End of false positives section -->
 </suppressions>
