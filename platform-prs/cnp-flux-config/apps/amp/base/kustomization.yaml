@@ -1,0 +1,10 @@
+# EDIT: one line added - ../amp-try-slc/amp-try-slc.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+  - ../../base/workload-identity
+  - ../amp-marketplace/amp-marketplace.yaml
+  - ../amp-marketplace-web/amp-marketplace-web.yaml
+  - ../amp-try-slc/amp-try-slc.yaml
+namespace: amp
