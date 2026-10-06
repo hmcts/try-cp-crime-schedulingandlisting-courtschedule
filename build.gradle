@@ -231,7 +231,7 @@ tasks.named('bootBuildInfo') {
 }
 
 bootJar {
-  archiveFileName = "apim-try-slc.jar"
+  archiveFileName = "amp-try-slc.jar"
 
   manifest {
     attributes('Implementation-Version': project.version.toString())

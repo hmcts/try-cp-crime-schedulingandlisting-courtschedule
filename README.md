@@ -9,8 +9,8 @@ It holds no Common Platform data, has no route to a CP backend, and is not inten
 
 | | |
 |---|---|
-| Product / component | `apim` / `try-slc` |
-| Platform | CNP (Jenkins + Flux), namespace `apim` |
+| Product / component | `amp` / `try-slc` |
+| Platform | CNP (Jenkins + Flux), namespace `amp` |
 | Contract | `uk.gov.hmcts.cp:api-cp-crime-schedulingandlisting-courtschedule:1.1.0` |
 | Backend dependencies | **none** |
 | Design | [Try it now service](https://hmcts.atlassian.net/wiki/spaces/AMP/pages/327713375/Try+it+now+service) on Confluence — the source of truth for the design |
@@ -43,7 +43,7 @@ flowchart LR
     SVC --> CPB
   end
 
-  subgraph CNP["CNP - namespace apim - PRODUCTION"]
+  subgraph CNP["CNP - namespace amp - PRODUCTION"]
     TIN["try-cp-crime-<br/>schedulingandlisting-courtschedule<br/>Spring Boot"]
     STUB[("Postgres<br/>recordings + seeded fixtures")]
     TIN --> STUB
@@ -104,7 +104,7 @@ sequenceDiagram
 ```
 
 ```bash
-BASE=https://apim-try-slc-staging.aat.platform.hmcts.net
+BASE=https://amp-try-slc-staging.aat.platform.hmcts.net
 
 # 1. Get a token (same client_credentials form post as Entra)
 TOKEN=$(curl -s -X POST $BASE/oauth2/v2.0/token \
@@ -163,13 +163,13 @@ Because this sandbox is its own issuer, **a demo token is worthless against any 
 
 ### Signing key
 
-Supplied as a JWK document from the `apim-{env}` key vault as `DEMO_SIGNING_KEY_JWK`. It must be
+Supplied as a JWK document from the `amp-{env}` key vault as `DEMO_SIGNING_KEY_JWK`. It must be
 stable: Flux redeploys on every merge to master, and a key generated per-process would invalidate
 every token already issued — surfacing as intermittent 401s that read as a platform fault. Seed it
 once per environment:
 
 ```bash
-az keyvault secret set --vault-name apim-aat \
+az keyvault secret set --vault-name amp-aat \
   --name try-slc-DEMO-SIGNING-KEY-JWK --file demo-signing-key.jwk.json
 ```
 
@@ -385,15 +385,15 @@ about because both are easy to reintroduce:
 
 ## Deployment
 
-CNP, via Jenkins (`Jenkinsfile_CNP` → `withPipeline('java', 'apim', 'try-slc')`) and Flux.
+CNP, via Jenkins (`Jenkinsfile_CNP` → `withPipeline('java', 'amp', 'try-slc')`) and Flux.
 Remaining onboarding steps are tracked in [CNP-ONBOARDING-PLAN.md](CNP-ONBOARDING-PLAN.md).
 
 | | |
 |---|---|
-| Host, non-prod | `apim-try-slc-{env}.service.core-compute-{env}.internal` |
-| Host, prod | a no-prefix `platform.hmcts.net` host behind Front Door, following `apim-marketplace-web.platform.hmcts.net` |
+| Host, non-prod | `amp-try-slc-{env}.service.core-compute-{env}.internal` |
+| Host, prod | a no-prefix `platform.hmcts.net` host behind Front Door, following `amp-marketplace-web.platform.hmcts.net` |
 
-**Production does not exist yet for `apim`.** The `marketplace-web` onboarding records the prod
+**Production does not exist yet for `amp`.** The `marketplace-web` onboarding records the prod
 stage as *not approved* — `environment-approvals.yml` has not been raised — with the DNS and Front
 Door changes for demo, AAT and prod still open as PRs. The recording pipeline has nowhere to store a
 production recording until that lands, so it can be built and rehearsed against AAT but not put to

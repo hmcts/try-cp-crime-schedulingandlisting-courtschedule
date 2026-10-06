@@ -1,0 +1,12 @@
+# EDIT: one line added - ../../amp-try-slc/demo.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+  - ../../../rbac/nonprod-role.yaml
+namespace: amp
+patches:
+  - path: ../../serviceaccount/demo.yaml
+  - path: ../../amp-marketplace/demo.yaml
+  - path: ../../amp-marketplace-web/demo.yaml
+  - path: ../../amp-try-slc/demo.yaml

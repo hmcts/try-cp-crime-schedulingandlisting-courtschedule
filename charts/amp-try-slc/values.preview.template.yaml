@@ -3,7 +3,7 @@ java:
   image: ${IMAGE_NAME}
   ingressHost: ${SERVICE_FQDN}
   keyVaults:
-    apim:
+    amp:
       secrets:
         - name: try-slc-DEMO-SIGNING-KEY-JWK
           alias: DEMO_SIGNING_KEY_JWK
