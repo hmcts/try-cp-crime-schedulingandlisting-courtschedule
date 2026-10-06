@@ -1,11 +1,11 @@
 java:
   replicas: 1
   applicationPort: 8080
-  image: 'hmctsprod.azurecr.io/amp/try-slc:latest'
-  # Internal-only host, matching amp-marketplace. This service is NOT reachable from a browser on
+  image: 'hmctsprod.azurecr.io/apim/try-slc:latest'
+  # Internal-only host, matching apim-marketplace. This service is NOT reachable from a browser on
   # the public catalogue at hmcts.github.io - see "Exposure" in the README before changing this.
-  ingressHost: amp-try-slc-{{ .Values.global.environment }}.service.core-compute-{{ .Values.global.environment }}.internal
-  aadIdentityName: amp
+  ingressHost: apim-try-slc-{{ .Values.global.environment }}.service.core-compute-{{ .Values.global.environment }}.internal
+  aadIdentityName: apim
   environment:
     APPLICATIONINSIGHTS_ENABLED: "false"
     APPLICATIONINSIGHTS_CONNECTION_STRING: "InstrumentationKey=00000000-0000-0000-0000-000000000000"
@@ -15,11 +15,11 @@ java:
     # adds ADMIN_TENANT_ID, ADMIN_AUDIENCE, ADMIN_ISSUER and ADMIN_JWKS_URI.
     ADMIN_DISABLED: "true"
   # keyVaults are defined per-environment in the values.*.template.yaml overlays so sbox can use
-  # amp-sbox without conflicting with the amp-{env} default.
+  # apim-sbox without conflicting with the apim-{env} default.
   #
   # DEMO_SIGNING_KEY_JWK holds the RSA private key (JWK JSON) this sandbox signs its demo access
   # tokens with. It MUST come from the vault and not be generated at startup: Flux redeploys on
   # every master merge, and a fresh key would silently invalidate every token already issued.
   # Seed it once with:
-  #   az keyvault secret set --vault-name amp-aat \
+  #   az keyvault secret set --vault-name apim-aat \
   #     --name try-slc-DEMO-SIGNING-KEY-JWK --file demo-signing-key.jwk.json

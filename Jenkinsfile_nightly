@@ -8,7 +8,7 @@ properties([
 @Library("Infrastructure")
 
 def type = "java"
-def product = "amp"
+def product = "apim"
 def component = "try-slc"
 
 withNightlyPipeline(type, product, component) {}

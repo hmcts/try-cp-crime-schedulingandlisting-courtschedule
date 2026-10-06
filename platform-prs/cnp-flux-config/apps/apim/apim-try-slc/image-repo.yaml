@@ -1,8 +1,8 @@
 apiVersion: image.toolkit.fluxcd.io/v1
 kind: ImageRepository
 metadata:
-  name: amp-try-slc
+  name: apim-try-slc
   annotations:
     hmcts.github.com/image-registry: hmctsprod
 spec:
-  image: hmctsprod.azurecr.io/amp/try-slc
+  image: hmctsprod.azurecr.io/apim/try-slc

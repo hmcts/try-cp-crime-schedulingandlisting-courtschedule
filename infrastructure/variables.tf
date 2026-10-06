@@ -1,5 +1,5 @@
 variable "product" {
-  default = "amp"
+  default = "apim"
 }
 
 variable "component" {}
@@ -39,15 +39,4 @@ variable "pgsql_public_access" {
 variable "vault_name" {
   description = "Set where the vault is not named product-env. Must match service-api-marketplace, which creates it."
   default     = ""
-}
-
-variable "tenant_id" {}
-
-variable "managed_identity_object_id" {
-  default = ""
-}
-
-variable "additional_managed_identities_access" {
-  type    = list(string)
-  default = []
 }

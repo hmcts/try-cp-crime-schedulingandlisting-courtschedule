@@ -14,40 +14,20 @@ locals {
     var.common_tags,
     tomap({ "Team Contact" = var.team_contact })
   )
+
+  # The vault is created by service-api-marketplace, which owns the apim product's shared
+  # infrastructure. This repo consumes it, exactly as web-api-marketplace does for Redis -
+  # two repos must never both declare the same vault, or they fight over its state.
+  vault_name           = var.vault_name != "" ? var.vault_name : "${var.product}-${var.env}"
+  vault_resource_group = "${var.product}-shared-${var.env}"
 }
 
-data "azurerm_user_assigned_identity" "jenkins" {
-  name                = "jenkins-${var.env == "sandbox" ? "sbox" : var.env}-mi"
-  resource_group_name = "managed-identities-${var.env}-rg"
+data "azurerm_key_vault" "vault" {
+  name                = local.vault_name
+  resource_group_name = local.vault_resource_group
 }
 
-# This service is the FIRST component of the amp product, so it creates the product's shared
-# resource group and Key Vault rather than consuming them. Under apim that job belonged to
-# service-api-marketplace; when that service migrates to amp it must consume what is created here,
-# not declare it again - two repositories declaring one vault fight over its state.
-resource "azurerm_resource_group" "rg" {
-  name     = "${var.product}-shared-${var.env}"
-  location = var.location
-  tags     = local.tags
-}
-
-module "vault" {
-  source                               = "git@github.com:hmcts/cnp-module-key-vault?ref=master"
-  name                                 = var.vault_name != "" ? var.vault_name : "${var.product}-${var.env}"
-  product                              = var.product
-  env                                  = var.env
-  tenant_id                            = var.tenant_id
-  object_id                            = var.jenkins_AAD_objectId
-  resource_group_name                  = azurerm_resource_group.rg.name
-  product_group_name                   = "DTS API Marketplace"
-  common_tags                          = local.tags
-  managed_identity_object_id           = var.managed_identity_object_id
-  create_managed_identity              = true
-  additional_managed_identities_access = var.additional_managed_identities_access
-  jenkins_object_id                    = data.azurerm_user_assigned_identity.jenkins.principal_id
-}
-
-# A server of its own, not a second database on amp-flexible. Two repositories running
+# A server of its own, not a second database on apim-flexible. Two repositories running
 # terraform against one server is a state conflict waiting to happen: whichever applies
 # second sees the other's databases as drift. The name must differ from the backend's
 # "${var.product}-flexible" or the two collide outright.
@@ -84,34 +64,29 @@ module "postgresql_flexible" {
 resource "azurerm_key_vault_secret" "postgres_user" {
   name         = "try-slc-POSTGRES-USER"
   value        = module.postgresql_flexible.username
-  key_vault_id = module.vault.key_vault_id
-  depends_on   = [module.vault]
+  key_vault_id = data.azurerm_key_vault.vault.id
 }
 
 resource "azurerm_key_vault_secret" "postgres_pass" {
   name         = "try-slc-POSTGRES-PASS"
   value        = module.postgresql_flexible.password
-  key_vault_id = module.vault.key_vault_id
-  depends_on   = [module.vault]
+  key_vault_id = data.azurerm_key_vault.vault.id
 }
 
 resource "azurerm_key_vault_secret" "postgres_host" {
   name         = "try-slc-POSTGRES-HOST"
   value        = module.postgresql_flexible.fqdn
-  key_vault_id = module.vault.key_vault_id
-  depends_on   = [module.vault]
+  key_vault_id = data.azurerm_key_vault.vault.id
 }
 
 resource "azurerm_key_vault_secret" "postgres_port" {
   name         = "try-slc-POSTGRES-PORT"
   value        = "5432"
-  key_vault_id = module.vault.key_vault_id
-  depends_on   = [module.vault]
+  key_vault_id = data.azurerm_key_vault.vault.id
 }
 
 resource "azurerm_key_vault_secret" "postgres_database" {
   name         = "try-slc-POSTGRES-DATABASE"
   value        = "tryitnow"
-  key_vault_id = module.vault.key_vault_id
-  depends_on   = [module.vault]
+  key_vault_id = data.azurerm_key_vault.vault.id
 }

@@ -1,0 +1,12 @@
+# EDIT: one line added - ../../apim-try-slc/aat.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+  - ../../../rbac/nonprod-role.yaml
+namespace: apim
+patches:
+  - path: ../../serviceaccount/aat.yaml
+  - path: ../../apim-marketplace/aat.yaml
+  - path: ../../apim-marketplace-web/aat.yaml
+  - path: ../../apim-try-slc/aat.yaml
