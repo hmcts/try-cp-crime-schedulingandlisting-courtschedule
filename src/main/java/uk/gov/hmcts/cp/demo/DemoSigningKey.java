@@ -14,7 +14,7 @@ import java.text.ParseException;
 /**
  * The RSA keypair this sandbox signs its demo access tokens with, and verifies them against.
  *
- * <p>Supplied as a JWK JSON document from the {@code amp-{env}} key vault in every deployed
+ * <p>Supplied as a JWK JSON document from the {@code apim-{env}} key vault in every deployed
  * environment. It <b>must</b> be stable across restarts: Flux redeploys the pod on every merge to
  * master, and a key generated at startup would invalidate every token already handed to a consumer —
  * surfacing as intermittent 401s that look like a platform fault rather than a key rotation.
@@ -56,7 +56,7 @@ public class DemoSigningKey {
         } catch (final ParseException e) {
             throw new IllegalStateException(
                     "demo.signing-key-jwk is not a valid JWK document. Expected the JSON produced by "
-                            + "an RSA JWK export, supplied from the amp-{env} key vault.", e);
+                            + "an RSA JWK export, supplied from the apim-{env} key vault.", e);
         }
         if (!parsed.isPrivate()) {
             throw new IllegalStateException(
