@@ -209,26 +209,20 @@ dependencies {
   testImplementation group: 'io.rest-assured', name: 'rest-assured', version: '6.0.1'
 }
 
-// Generates META-INF/build-info.properties, which is the only reason GET /info returns anything
-// other than {}. Copied from the spring-actuator.gradle that
-// service-cp-crime-hearing-results-document-subscription applies, so /info carries the same fields
-// here as it does there.
+// NOTE: there is deliberately no springBoot.buildInfo block here.
 //
-// ARTEFACT_VERSION is what the CNP pipeline passes; project.version is the local fallback.
-springBoot {
-  buildInfo {
-    properties {
-      version = System.getProperty('ARTEFACT_VERSION') ?: project.version
-    }
-  }
-}
-
-// The build timestamp is the point of this file, so it must never be served from a cache or
-// reported up-to-date - that would pin /info to whenever the task last genuinely ran.
-tasks.named('bootBuildInfo') {
-  outputs.upToDateWhen { false }
-  outputs.cacheIf { false }
-}
+// The CNP Jenkins pipeline writes its own src/main/resources/META-INF/build-info.properties before
+// calling assemble, carrying build.version, build.number, build.commit and build.date - richer than
+// anything Gradle can generate, because it knows the commit and the build number. Adding
+// springBoot.buildInfo produces a second file at the same path and processResources fails the build
+// with "Entry META-INF/build-info.properties is a duplicate".
+//
+// Setting duplicatesStrategy hides the failure but the generated file wins, discarding the
+// pipeline's commit and build number. So the right answer is to let the platform supply it.
+//
+// Consequence: a locally built jar has no build-info, so GET /info returns {}. Only a
+// pipeline-built artefact has one. src/test/resources/META-INF/build-info.properties exists so the
+// endpoint is still covered by a test.
 
 bootJar {
   archiveFileName = "apim-try-slc.jar"
