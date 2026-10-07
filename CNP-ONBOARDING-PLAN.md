@@ -28,7 +28,7 @@ Status: ✅ Done · ⚠️ Decide first · ○ To do
 | Helm release / chart | `amp-try-slc` |
 | Docker image | `hmctsprod.azurecr.io/amp/try-slc:{tag}` |
 | Flux config path | `apps/amp/amp-try-slc/` |
-| Key vault | `amp-{env}` (`amp-sbox` in sandbox) |
+| Key vault | `amp-try-slc-{env}` (`amp-try-slc-sbox` in sandbox) — component-scoped so other amp repos do not collide |
 | Vault secret | `try-slc-DEMO-SIGNING-KEY-JWK` |
 | Managed identity | `amp-{env}-mi`, chart `aadIdentityName: amp` |
 | Internal ingress | `amp-try-slc-{env}.service.core-compute-{env}.internal` |
@@ -79,7 +79,7 @@ sandbox → preview → AAT → demo, and demo is where it lives.
 |---|---|---|---|
 | 2.1 | Generate the demo RSA keypair as a JWK document | ○ To do | Any RSA 2048 JWK export; `kid` is free-form |
 | 2.2 | `az keyvault secret set --vault-name amp-aat --name try-slc-DEMO-SIGNING-KEY-JWK` | ○ To do | |
-| 2.3 | Same for `amp-sbox` if sandbox is wanted | ○ To do | |
+| 2.3 | Same for `amp-try-slc-sbox` if sandbox is wanted | ○ To do | |
 
 > Skipping this does not block a deploy — the service starts with an ephemeral key and logs a
 > warning — but every Flux redeploy would then invalidate every issued token.

@@ -173,7 +173,7 @@ Because this sandbox is its own issuer, **a demo token is worthless against any 
 
 ### Signing key
 
-Supplied as a JWK document from the `amp-{env}` key vault as `DEMO_SIGNING_KEY_JWK`. It must be
+Supplied as a JWK document from the `amp-try-slc-{env}` key vault as `DEMO_SIGNING_KEY_JWK`. It must be
 stable: Flux redeploys on every merge to master, and a key generated per-process would invalidate
 every token already issued — surfacing as intermittent 401s that read as a platform fault. Seed it
 once per environment:

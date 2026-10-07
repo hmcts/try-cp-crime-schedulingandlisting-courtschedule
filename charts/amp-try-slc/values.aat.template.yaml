@@ -3,7 +3,7 @@ java:
   image: ${IMAGE_NAME}
   ingressHost: amp-try-slc-staging.aat.platform.hmcts.net
   keyVaults:
-    amp:
+    amp-try-slc:
       secrets:
         - name: try-slc-DEMO-SIGNING-KEY-JWK
           alias: DEMO_SIGNING_KEY_JWK
