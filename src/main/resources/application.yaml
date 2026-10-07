@@ -17,7 +17,7 @@ management:
 
 spring:
   config:
-    import: "optional:configtree:/mnt/secrets/apim/,optional:configtree:/mnt/secrets/apim-sbox/"
+    import: "optional:configtree:/mnt/secrets/amp/,optional:configtree:/mnt/secrets/amp-sbox/"
   application:
     name: try-cp-crime-schedulingandlisting-courtschedule
   datasource:
@@ -48,11 +48,11 @@ auth:
   mode: ENFORCE
   tenant-id: ${DEMO_TENANT_ID:00000000-0000-0000-0000-0000000000aa}
   audience: ${DEMO_AUDIENCE:api://try-cp-crime-schedulingandlisting-courtschedule}
-  issuer: ${DEMO_ISSUER:https://try-it-now.apim.hmcts.internal/00000000-0000-0000-0000-0000000000aa/v2.0}
+  issuer: ${DEMO_ISSUER:https://try-it-now.amp.hmcts.internal/00000000-0000-0000-0000-0000000000aa/v2.0}
   clock-skew-seconds: 60
 
 demo:
-  # RSA private key (JWK JSON) used to sign demo tokens. Supplied from the apim-{env} key vault in
+  # RSA private key (JWK JSON) used to sign demo tokens. Supplied from the amp-{env} key vault in
   # every deployed environment. Blank means "generate an ephemeral key at startup" - acceptable for
   # local development only; the service logs a loud warning and tokens die with the process.
   signing-key-jwk: ${DEMO_SIGNING_KEY_JWK:}

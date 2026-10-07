@@ -7,4 +7,4 @@ properties([
     ])
 ])
 
-withParameterizedPipeline('java', 'apim', 'try-slc', params.ENVIRONMENT, 'sandbox') {}
+withParameterizedPipeline('java', 'amp', 'try-slc', params.ENVIRONMENT, 'sandbox') {}

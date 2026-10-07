@@ -1,13 +1,13 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: apim-try-slc
+  name: amp-try-slc
 spec:
   values:
     java:
-      ingressHost: apim-try-slc.aat.platform.hmcts.net
+      ingressHost: amp-try-slc.aat.platform.hmcts.net
       keyVaults:
-        apim:
+        amp:
           secrets:
             - name: try-slc-DEMO-SIGNING-KEY-JWK
               alias: DEMO_SIGNING_KEY_JWK
