@@ -1,0 +1,5 @@
+# Deliberately NOT inheriting the api-cp repos' configuration. Those switch
+# oas3-valid-media-example and oas3-valid-schema-example off, which is why an example that does not
+# match its own schema has survived in the SLC contract. These specs are authored fresh, so the
+# rules stay on.
+extends: ["spectral:oas"]

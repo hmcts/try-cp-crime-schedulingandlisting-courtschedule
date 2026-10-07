@@ -21,19 +21,31 @@ data "azurerm_user_assigned_identity" "jenkins" {
   resource_group_name = "managed-identities-${var.env}-rg"
 }
 
-# This service is the FIRST component of the amp product, so it creates the product's shared
-# resource group and Key Vault rather than consuming them. Under apim that job belonged to
-# service-api-marketplace; when that service migrates to amp it must consume what is created here,
-# not declare it again - two repositories declaring one vault fight over its state.
+# Resource group and Key Vault are COMPONENT-scoped, not product-scoped.
+#
+# They used to be "${var.product}-shared-${var.env}" and "${var.product}-${var.env}". With one amp
+# component that works, but service-api-marketplace and web-api-marketplace build the same names
+# from the same expressions, so the moment they migrate from apim to amp a second Terraform state
+# declares resources that already exist and the apply fails. Naming them per component removes the
+# clash entirely and lets each repo own its own vault.
 resource "azurerm_resource_group" "rg" {
-  name     = "${var.product}-shared-${var.env}"
+  name     = "${var.product}-${var.component}-${var.env}"
   location = var.location
   tags     = local.tags
 }
 
+# create_managed_identity is the exception to the rule above, and it must stay that way in exactly
+# ONE amp repo. cnp-module-key-vault names it "${var.product}-${local.env}-mi" with no component
+# segment (see its managed-identity.tf), so it is product-wide by construction: amp-aat-mi,
+# amp-demo-mi. That is deliberate - it is the identity the Flux workload-identity service account
+# federates against, ${WI_NAME}-${WI_ENVIRONMENT}-mi, and there is one per namespace.
+#
+# This repo creates it because it is amp's first component. When service-api-marketplace and
+# web-api-marketplace migrate they must set create_managed_identity = false and reference the
+# identity created here, or they will collide on the name.
 module "vault" {
   source                               = "git@github.com:hmcts/cnp-module-key-vault?ref=master"
-  name                                 = var.vault_name != "" ? var.vault_name : "${var.product}-${var.env}"
+  name                                 = var.vault_name != "" ? var.vault_name : "${var.product}-${var.component}-${var.env}"
   product                              = var.product
   env                                  = var.env
   tenant_id                            = var.tenant_id

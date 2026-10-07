@@ -21,11 +21,15 @@ It holds no Common Platform data, has no route to a CP backend, and is not inten
 > the infrastructure: the Postgres module and the admin Entra app registration — see
 > [CNP-ONBOARDING-PLAN.md](CNP-ONBOARDING-PLAN.md).
 
-> **Where the data comes from.** Every example served here is captured from a **non-production CP
-> environment** — the `service-cp-*` deployment in dev (`devamp01`) or STE, in front of the CP
-> backend — and **pushed into the production try-it-now running in CNP** over its admin API. The
-> live CP estate is never read, at capture time or at serve time. The direction matters: the capture
-> is run from the non-live environment and pushes *in*; this service never reaches *out*.
+> **Where this runs, and where the data comes from.** **Demo is the last environment.** This service
+> is deliberately never deployed to production — the environments are sandbox, preview, AAT and then
+> demo, and demo is the end of the line.
+>
+> Every example served here is captured from a **non-production CP environment** — the
+> `service-cp-*` deployment in SIT, dev (`devamp01`) or STE, in front of the CP backend — and
+> **pushed into the demo try-it-now running in CNP** over its admin API. The live CP estate is never
+> read, at capture time or at serve time. The direction matters: the capture is run from the
+> non-live CP environment and pushes *in*; this service never reaches *out*.
 
 ---
 
@@ -35,7 +39,7 @@ It holds no Common Platform data, has no route to a CP backend, and is not inten
 flowchart LR
   CONS(["Consumer evaluating the API"])
 
-  subgraph LOWER["NON-LIVE CP environment - dev devamp01 / STE"]
+  subgraph LOWER["NON-LIVE CP environment - SIT / dev devamp01 / STE"]
     CAP(["Tester or CI<br/>amp-bruno-collection"])
     SVC["service-cp-crime-scheduleandlist-<br/>courtschedule"]
     CPB[("CP backend<br/>ste-ccm-64 - synthetic data")]
@@ -43,7 +47,7 @@ flowchart LR
     SVC --> CPB
   end
 
-  subgraph CNP["CNP - namespace amp - PRODUCTION"]
+  subgraph CNP["CNP - namespace amp - DEMO, the last environment"]
     TIN["try-cp-crime-<br/>schedulingandlisting-courtschedule<br/>Spring Boot"]
     STUB[("Postgres<br/>recordings + seeded fixtures")]
     TIN --> STUB
@@ -56,17 +60,23 @@ flowchart LR
   CONS -- "3. token, then GET /case/{urn}/courtschedule" --> TIN
 
   LIVE["LIVE CP estate"]
+  PRODX["CNP PRODUCTION"]
   TIN -. "never" .-x LIVE
+  TIN -. "never deployed" .-x PRODX
 ```
 
 **Read the arrows by direction.** The thick arrow is the only thing that crosses into CNP, and it is
-*inbound*: the capture runs in the non-live CP environment and pushes the response into production
-over the admin API. This service makes no outbound call to anything — it validates tokens against a
-key it holds in memory and answers from its own store. That is what lets it live in CNP with no CP
+*inbound*: the capture runs in the non-live CP environment and pushes the response into demo over
+the admin API. This service makes no outbound call to anything — it validates tokens against a key
+it holds in memory and answers from its own store. That is what lets it live in CNP with no CP
 connectivity and no route to the live estate, at capture time or at serve time.
 
-A consequence worth stating plainly: **the production sandbox holds data captured from a non-live
-environment, and nothing else.** If a case URN appears here, it came from dev or STE.
+**It is not a network path.** There is no CP-to-CNP peering, and `cnp-cp-integration` is an empty
+repo. What crosses is an authenticated HTTPS client running in the CP environment calling a public
+demo host. The admin realm's Entra token is the whole of the control; the network provides none.
+
+A consequence worth stating plainly: **the demo sandbox holds data captured from a non-live CP
+environment, and nothing else.** If a case URN appears here, it came from SIT, dev or STE.
 
 ---
 
@@ -163,7 +173,7 @@ Because this sandbox is its own issuer, **a demo token is worthless against any 
 
 ### Signing key
 
-Supplied as a JWK document from the `amp-{env}` key vault as `DEMO_SIGNING_KEY_JWK`. It must be
+Supplied as a JWK document from the `amp-try-slc-{env}` key vault as `DEMO_SIGNING_KEY_JWK`. It must be
 stable: Flux redeploys on every merge to master, and a key generated per-process would invalidate
 every token already issued — surfacing as intermittent 401s that read as a platform fault. Seed it
 once per environment:
@@ -207,23 +217,29 @@ expecting it to appear in the response — it is dropped. Use a real value or om
 ## Recording pipeline
 
 Examples are **recorded from the real service in a non-live CP environment** and **pushed into the
-production try-it-now running in CNP**, which then serves them. Those are two different estates and
-two different environments, and the split is the point: the data is real in *shape* because it came
-from the real service, and safe to publish because it came from a non-production environment. Full
-design detail is on
+demo try-it-now running in CNP**, which then serves them. Those are two different estates and two
+different environments, and the split is the point: the data is real in *shape* because it came from
+the real service, and safe to publish because it came from a non-production environment. Full design
+detail is on
 [Confluence](https://hmcts.atlassian.net/wiki/spaces/AMP/pages/327713375/Try+it+now+service); the
 shape is:
 
 | Concern | Environment | Where |
 |---|---|---|
-| **Capture** a real response | **Non-live CP** — dev (`devamp01`) or STE, in front of `ste-ccm-64` | `amp-bruno-collection`, run from that environment |
-| **Push** across the boundary | From non-live CP **into** CNP production | `POST /admin/recordings`, with a real corporate Entra token |
-| **Validate** and store | **CNP production** | Ingest endpoint on the production try-it-now |
-| **Serve** to consumers | **CNP production** | Production try-it-now, from Postgres |
+| **Capture** a real response | **Non-live CP** — SIT, dev (`devamp01`) or STE, in front of the CP backend | `amp-bruno-collection`, run from that environment |
+| **Push** across the boundary | From non-live CP **into** CNP demo | `POST /admin/recordings`, with a real corporate Entra token |
+| **Validate** and store | **CNP demo** | Ingest endpoint on the demo try-it-now |
+| **Serve** to consumers | **CNP demo** | Demo try-it-now, from Postgres |
 
 Nothing in this flow reads the **live** CP estate, and nothing in it runs in the live CP estate. The
-only crossing is the push, and it is initiated from the non-live environment — the production service
+only crossing is the push, and it is initiated from the non-live CP environment — the demo service
 never calls out.
+
+**Demo being the last environment does not make this low-stakes.** Demo exists precisely so it can
+be shown to people outside HMCTS: it is reachable without a VPN, behind Front Door. A published
+recording there is on the public internet. Everything below about the ingest gate, the two auth
+realms and the publish review applies exactly as it would have in production — the only thing that
+changed is which environment is the destination.
 
 ### Endpoints
 
@@ -244,10 +260,10 @@ sequenceDiagram
   autonumber
   actor T as Tester / CI
   participant BR as amp-bruno-collection<br/>post-response hook
-  participant AMP as service-cp-*<br/>NON-LIVE CP - dev or STE
+  participant AMP as service-cp-*<br/>NON-LIVE CP - SIT, dev or STE
   participant CP as CP backend<br/>ste-ccm-64 - synthetic
   participant E as Entra<br/>corporate tenant
-  participant TIN as try-it-now<br/>CNP PRODUCTION
+  participant TIN as try-it-now<br/>CNP DEMO
   participant DB as Postgres
 
   Note over T,CP: NON-LIVE CP environment<br/>the live estate is never touched
@@ -259,7 +275,7 @@ sequenceDiagram
 
   BR->>E: client credentials token
   E-->>BR: access token
-  Note over BR,TIN: THE BOUNDARY - pushed from non-live CP<br/>into try-it-now running in CNP production.<br/>Inbound only - production never calls out
+  Note over BR,TIN: THE BOUNDARY - pushed from non-live CP<br/>into try-it-now running in CNP demo.<br/>Inbound only - demo never calls out
   BR->>TIN: POST /admin/recordings<br/>payload + provenance + Bearer
   TIN->>TIN: validate the Entra token<br/>NOT the demo credentials
   TIN->>TIN: deserialise into the generated<br/>CourtScheduleResponse, strict
@@ -281,7 +297,7 @@ public:
 sequenceDiagram
   autonumber
   actor R as Reviewer
-  participant TIN as try-it-now<br/>PRODUCTION
+  participant TIN as try-it-now<br/>CNP DEMO
   participant DB as Postgres
 
   R->>TIN: GET /admin/recordings?status=UNPUBLISHED
@@ -302,13 +318,14 @@ Three things this design turns on, all of which matter to anyone implementing it
 - **The ingest gate is the point.** The same contract check that runs at build time today moves to
   ingest time. A recording that does not fit the published contract is rejected with the field named.
 - **Ingest authenticates with a real Entra token**, never the demo credentials — those are published
-  in the catalogue and must not open a write path into production. `/admin/**` should also be
-  restricted at the edge, separately from the public read API.
-- **Non-live as the source is a safety property, not a convenience.** Captures land in a production
-  service that is one approval away from being publicly readable, so the only thing standing between
-  a real case and the public internet is the choice of source environment. Recording from live CP
-  would defeat the design however carefully the review step is run. Confirm that `ste-ccm-64` holds
-  synthetic data before recording anything — this is still unanswered.
+  in the catalogue and must not open a write path into a deployed environment. `/admin/**` should
+  also be restricted at the edge, separately from the public read API.
+- **Non-live as the source is a safety property, not a convenience.** Captures land in a demo service
+  that is one approval away from being publicly readable — demo needs no VPN, by design — so the only
+  thing standing between a real case and the public internet is the choice of source environment.
+  Recording from live CP would defeat the design however carefully the review step is run. Confirm
+  that the source environment holds synthetic data before recording anything; with SIT now named as a
+  capture source, the question covers SIT as well as `ste-ccm-64`, and is still unanswered.
 - **Provenance is recorded, not assumed.** Every row carries `recorded_from`, and the reviewer sees
   it on the publish screen. If a recording cannot name the non-live environment it came from, that
   is the signal to archive it rather than publish it.
@@ -388,17 +405,25 @@ about because both are easy to reintroduce:
 CNP, via Jenkins (`Jenkinsfile_CNP` → `withPipeline('java', 'amp', 'try-slc')`) and Flux.
 Remaining onboarding steps are tracked in [CNP-ONBOARDING-PLAN.md](CNP-ONBOARDING-PLAN.md).
 
-| | |
-|---|---|
-| Host, non-prod | `amp-try-slc-{env}.service.core-compute-{env}.internal` |
-| Host, prod | a no-prefix `platform.hmcts.net` host behind Front Door, following `amp-marketplace-web.platform.hmcts.net` |
+**Demo is the last environment.** Sandbox, preview, AAT, then demo. There is no production
+deployment of this service and there is not meant to be one.
 
-**Production does not exist yet for `amp`.** The `marketplace-web` onboarding records the prod
-stage as *not approved* — `environment-approvals.yml` has not been raised — with the DNS and Front
-Door changes for demo, AAT and prod still open as PRs. The recording pipeline has nowhere to store a
-production recording until that lands, so it can be built and rehearsed against AAT but not put to
-its actual use.
+| Environment | Host | Role |
+|---|---|---|
+| sandbox, AAT | `amp-try-slc-{env}.service.core-compute-{env}.internal` | Internal. Build and rehearse |
+| preview | `amp-try-slc-pr-{N}.preview.platform.hmcts.net` | Per-PR, Jenkins-deployed, destroyed nightly |
+| **demo** | `amp-try-slc.demo.platform.hmcts.net`, behind Front Door | **The live one.** Public, no VPN |
+| production | — | **Deliberately none** |
 
-A production host behind Front Door is internet-facing, which is what makes the sandbox reachable
-from the public API catalogue — and equally why `/admin/**` has to be restricted separately from the
-read API. CORS for `https://hmcts.github.io` is already configured via `demo.allowed-origins`.
+Two things depend on demo being the terminal environment, and both are the reason it is public:
+
+- **Consumers reach it from the public API catalogue.** Try-it-out is a browser call from
+  `https://hmcts.github.io`, which is why CORS is configured through `demo.allowed-origins`.
+- **The production Marketplace issues try-it-now credentials against a demo-tier APIM.** The
+  production `service-api-marketplace` calls the demo APIM to generate the API keys a developer uses
+  here. That is a production service with a dependency on a demo environment — see the note in
+  [CNP-ONBOARDING-PLAN.md](CNP-ONBOARDING-PLAN.md), because it is a real operational consequence
+  rather than a detail.
+
+Being public is also why `/admin/**` must be restricted at the edge, separately from the read API.
+The ingest endpoint writes data that is one approval away from being internet-readable.

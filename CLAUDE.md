@@ -6,7 +6,8 @@ environment on top — so a prospective consumer can call the API before request
 live one.
 
 **Pattern**: Recording store with real token validation, two auth realms
-**Platform**: CNP (Jenkins + Flux), product `amp`, component `try-slc` — **not** the CP
+**Platform**: CNP (Jenkins + Flux), product `amp`, component `try-slc`, **demo is the last
+environment** — **not** the CP
 platform. No ADO pipelines, no `cp-vp-aks-deploy`, no `wire-service-deployment`.
 **Implements**: `api-cp-crime-schedulingandlisting-courtschedule` (pinned `1.1.0`)
 **Backend dependencies**: Postgres only. No route to the Common Platform, and must not gain one.
@@ -59,11 +60,17 @@ uk.gov.hmcts.cp/
 
 - **Never add a backend client.** The value of this service is that it cannot reach CP. A real call
   would make responses non-deterministic and drag it back inside the CP network boundary.
-- **Data flows inbound, from non-live CP only.** Examples are captured from `service-cp-*` in dev
-  (`devamp01`) or STE and **pushed** into the production deployment in CNP over `/admin/recordings`.
-  The production service never calls out, and the live CP estate is never a source. Changing either
-  half of that — making this service fetch, or recording from live — breaks the reason it is allowed
-  to run in CNP and be publicly readable.
+- **Demo is the last environment. There is no production deployment and there must not be one.**
+  Sandbox, preview, AAT, demo. Anyone adding a prod overlay, a prod tfvars or an
+  `environment-approvals.yml` entry for this component has misread the design. Demo is public and
+  needs no VPN, so "only demo" is not a reason to relax anything below.
+- **Data flows inbound, from non-live CP only.** Examples are captured from `service-cp-*` in SIT,
+  dev (`devamp01`) or STE and **pushed** into the **demo** deployment in CNP over
+  `/admin/recordings`. The demo service never calls out, and the live CP estate is never a source.
+  There is no CP-to-CNP network path; what crosses is an authenticated HTTPS client calling a public
+  host, and the admin Entra token is the whole of the control. Changing either half of that — making
+  this service fetch, or recording from live — breaks the reason it is allowed to run in CNP and be
+  publicly readable.
 - **The auth code is a copy, not a fork.** `EntraTokenValidator`, `EntraAuthProperties`, `AuthMode`,
   `ValidatedCaller` and `TokenValidationException` must stay **byte-identical** to
   `service-cp-crime-scheduleandlist-courtschedule` so consumers meet production auth behaviour here;
@@ -108,6 +115,7 @@ answers 400 naming the offending field. Recordings serve nothing until published
 | `/info` answers `{}` locally | Expected. The CNP pipeline writes `build-info.properties` into `src/main/resources/META-INF` before `assemble`; a local build has no such file. Only pipeline-built artefacts carry one |
 | `processResources` fails: *Entry META-INF/build-info.properties is a duplicate* | Something added a `springBoot.buildInfo` block. The pipeline already generates that file, so Gradle generating a second one collides. **Do not fix this with `duplicatesStrategy`** — the generated file then wins and the pipeline's `build.commit` and `build.number` are lost. Remove the block; see the note in `build.gradle` |
 | `bootJar` fails: *Could not find org.openapitools:openapi-generator-core* | `api-cp-*` publishes the OpenAPI generator, `swagger-parser` and `swagger-annotations` in its **runtimeElements** variant, though all three are build-time only. `apiElements` declares none of them, so `compileJava` passes and `bootJar` — the first task to resolve `runtimeClasspath` — is where it breaks. They are excluded in `build.gradle`; **do not re-add**. Green locally, red on Jenkins, because two of the coordinates are not resolvable on the CNP agent |
+| Configuration fails: *Could not resolve io.github.ben-manes:gradle-versions-plugin* | That plugin was removed. Its artefact is not on Maven Central - only the Gradle Plugin Portal, which serves downloads from a separate host (`plugins-artifacts.gradle.org`), so it is fragile on a CNP agent. Nothing ran `dependencyUpdates`; Renovate covers it. **Do not re-add it** - see the note in `build.gradle` |
 | Jenkins logs `repository "<product>/try-slc" is not found` during Checkout | Benign. `Acr.hasRepoTag` runs `az acr repository show-tags` only to decide whether an image rebuild can be skipped, and swallows the failure (`Acr.groovy:626-631`). Jenkins prints the step failure before Groovy catches it, so it looks fatal. Expected until the first build pushes an image, and again after any product rename |
 | Startup fails naming a stub file | That stub drifted from the contract, or `build.gradle` pinned a new contract version |
 | Startup fails on `admin.auth.tenant-id` | The admin realm is half-configured. Set `ADMIN_DISABLED=true` locally, or supply a real tenant and audience. It fails closed on purpose |

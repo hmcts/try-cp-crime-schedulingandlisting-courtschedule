@@ -1,4 +1,14 @@
-# Insert into cnp-jenkins-config/deployment-controls.yml, keeping the file's alphabetical
-# order by repo URL. It sits between service-auth-provider-java-client and wa-workflow-api.
+# Insert into cnp-jenkins-config/deployment-controls.yml.
+#
+# Verified position (5 October 2026): the file's main block is alphabetical by repo name, and
+# try-cp sorts between test-spring-java-upgrade and ts-translation-service - "try" before "ts".
+#
+#   - repo: https://github.com/hmcts/test-spring-java-upgrade.git
+#   <-- here
+#   - repo: https://github.com/hmcts/ts-translation-service.git
+#
+# Note the file is NOT alphabetical throughout: four entries (transcribe-web,
+# transcribe-shared-infrastructure, labs-chris47dev-java, labs-chris47dev1) are appended at the
+# end, out of order. Alphabetical is the convention, not an invariant - do not "fix" those.
   - repo: https://github.com/hmcts/try-cp-crime-schedulingandlisting-courtschedule.git
     deployment-enabled: true

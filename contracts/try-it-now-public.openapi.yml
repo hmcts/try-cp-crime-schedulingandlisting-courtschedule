@@ -1,0 +1,280 @@
+openapi: 3.0.3
+
+info:
+  title: Try It Now — public API
+  description: >-
+    The parts of a try-it-now sandbox that a prospective API consumer calls, and the only parts
+    exposed through Azure APIM.
+
+
+    This contract is **shared by every try-it-now service**. It carries no domain endpoints: the
+    API being demonstrated comes from that service's own `api-cp-*` contract, and the two are
+    published together. A consumer therefore sees one catalogue entry made of two specs — the
+    sandbox plumbing described here, and the real API shape described there.
+
+
+    Everything here is **unauthenticated**. `GET /scenarios` has to be readable before a consumer
+    holds a token, since it is where the credentials come from.
+  version: 1.0.0
+  contact:
+    email: no-reply@hmcts.net
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: /
+    description: The sandbox itself
+
+tags:
+  - name: discovery
+    description: What this sandbox offers, and how to call it
+  - name: token
+    description: Demo credentials, issued and verified by the sandbox alone
+
+paths:
+  /scenarios:
+    get:
+      summary: What this sandbox serves, and how to call it
+      description: >-
+        Self-documenting. Lists the case URNs that produce each outcome, the demo credentials to
+        use, and the source environment each example was captured from.
+
+
+        Unauthenticated by design — a consumer needs this before it can obtain a token.
+      operationId: getScenarios
+      tags: [discovery]
+      responses:
+        '200':
+          description: The sandbox catalogue
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScenariosResponse'
+
+  /oauth2/v2.0/token:
+    post:
+      summary: Issue a demo access token
+      description: >-
+        Mirrors the Microsoft Entra `client_credentials` token endpoint closely enough that a
+        consumer can point an existing Entra client at it.
+
+
+        **The token is worthless anywhere else.** The sandbox signs it with its own key and the
+        `iss`, `aud` and `tid` claims are its own identifiers, so it authenticates nothing against
+        a real HMCTS API.
+      operationId: issueDemoToken
+      tags: [token]
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenRequest'
+      responses:
+        '200':
+          description: A demo access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400':
+          description: The request was not a well-formed client-credentials grant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenError'
+        '401':
+          description: Unknown client, or the secret did not match
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenError'
+
+  /.well-known/jwks.json:
+    get:
+      summary: The sandbox's public signing key
+      description: >-
+        The public half of the key the sandbox signs demo tokens with. Published so a consumer can
+        verify a token the same way it would verify an Entra one. The private half never leaves the
+        service.
+      operationId: getJwks
+      tags: [token]
+      responses:
+        '200':
+          description: A JWK Set containing one RSA public key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JwkSet'
+
+components:
+  schemas:
+
+    ScenariosResponse:
+      type: object
+      description: Everything a consumer needs to make a first successful call.
+      required: [description, howToCall, demoClients, scenarios]
+      properties:
+        description:
+          type: string
+          description: What this sandbox is, and what it is not.
+        howToCall:
+          $ref: '#/components/schemas/HowToCall'
+        demoClients:
+          type: array
+          description: >-
+            The credentials to call this sandbox with. **The secrets are published deliberately** —
+            they authenticate against this sandbox alone and are worthless elsewhere. Anything that
+            would be damaging if these were public does not belong behind them, which is why the
+            admin API is a separate contract guarded separately.
+          items:
+            $ref: '#/components/schemas/DemoClient'
+        scenarios:
+          type: array
+          description: One entry per case URN this sandbox will answer for.
+          items:
+            $ref: '#/components/schemas/ScenarioSummary'
+
+    HowToCall:
+      type: object
+      description: The two calls, in order.
+      properties:
+        1_getToken:
+          type: string
+          description: How to obtain a demo access token.
+        2_callApi:
+          type: string
+          description: How to call the demonstrated API with it.
+        note:
+          type: string
+          description: Why the token is not an Entra token.
+
+    DemoClient:
+      type: object
+      description: >-
+        One set of demo credentials. More than one is offered on purpose, so a consumer can see a
+        genuine 403 as well as a 200 — the client without the required role is as much a scenario
+        as the one with it.
+      required: [client_id, client_secret, roles, description]
+      properties:
+        client_id:
+          type: string
+          format: uuid
+          description: The demo client identifier.
+        client_secret:
+          type: string
+          description: Published deliberately. Valid only against this sandbox.
+        roles:
+          type: array
+          description: Application roles this client's tokens will carry.
+          items:
+            type: string
+        description:
+          type: string
+          description: What this client demonstrates.
+
+    ScenarioSummary:
+      type: object
+      description: One published example.
+      required: [id, caseUrn, status, summary, recordedFrom, path]
+      properties:
+        id:
+          type: string
+          description: Short identifier, for example `allocated`.
+        caseUrn:
+          type: string
+          description: The URN to call this sandbox with.
+        status:
+          type: integer
+          format: int32
+          description: The HTTP status this scenario answers with.
+        summary:
+          type: string
+          description: One line describing what it demonstrates.
+        recordedFrom:
+          type: string
+          description: >-
+            Where the example came from — `fixture` for a committed stub, otherwise the source
+            environment. Surfaced so nobody mistakes a lower-environment capture for live data.
+        path:
+          type: string
+          description: The fully resolved path to call.
+
+    TokenRequest:
+      type: object
+      description: A client-credentials grant, in the form Entra expects.
+      required: [grant_type, client_id, client_secret]
+      properties:
+        grant_type:
+          type: string
+          enum: [client_credentials]
+          description: Only `client_credentials` is supported.
+        client_id:
+          type: string
+          format: uuid
+        client_secret:
+          type: string
+        scope:
+          type: string
+          description: Accepted and ignored. Present so an Entra-shaped client needs no change.
+
+    TokenResponse:
+      type: object
+      description: An Entra-shaped token response.
+      required: [access_token, token_type, expires_in]
+      properties:
+        access_token:
+          type: string
+          description: A signed JWT, verifiable against the published JWKS.
+        token_type:
+          type: string
+          enum: [Bearer]
+        expires_in:
+          type: integer
+          format: int32
+          description: Lifetime in seconds.
+
+    TokenError:
+      type: object
+      description: An OAuth 2.0 error, in the form RFC 6749 defines.
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: For example `invalid_client` or `unsupported_grant_type`.
+        error_description:
+          type: string
+
+    JwkSet:
+      type: object
+      description: A JSON Web Key Set.
+      required: [keys]
+      properties:
+        keys:
+          type: array
+          items:
+            $ref: '#/components/schemas/Jwk'
+
+    Jwk:
+      type: object
+      description: One RSA public key.
+      required: [kty, kid, n, e]
+      properties:
+        kty:
+          type: string
+          enum: [RSA]
+        use:
+          type: string
+          enum: [sig]
+        alg:
+          type: string
+          enum: [RS256]
+        kid:
+          type: string
+        n:
+          type: string
+          description: Modulus, base64url.
+        e:
+          type: string
+          description: Exponent, base64url.

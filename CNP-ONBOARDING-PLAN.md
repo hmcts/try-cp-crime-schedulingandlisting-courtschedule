@@ -28,20 +28,37 @@ Status: ✅ Done · ⚠️ Decide first · ○ To do
 | Helm release / chart | `amp-try-slc` |
 | Docker image | `hmctsprod.azurecr.io/amp/try-slc:{tag}` |
 | Flux config path | `apps/amp/amp-try-slc/` |
-| Key vault | `amp-{env}` (`amp-sbox` in sandbox) |
+| Key vault | `amp-try-slc-{env}` (`amp-try-slc-sbox` in sandbox) — component-scoped so other amp repos do not collide |
 | Vault secret | `try-slc-DEMO-SIGNING-KEY-JWK` |
 | Managed identity | `amp-{env}-mi`, chart `aadIdentityName: amp` |
 | Internal ingress | `amp-try-slc-{env}.service.core-compute-{env}.internal` |
 | AAT staging URL | `amp-try-slc-staging.aat.platform.hmcts.net` |
 | Preview URL | `amp-try-slc-pr-{N}.preview.platform.hmcts.net` |
+| **Demo URL — the live one** | `amp-try-slc.demo.platform.hmcts.net`, behind Front Door |
+| Production | **none, deliberately** |
 
 ---
 
-## Phase 0 — Decide exposure ⚠️
+## Phase 0 — Exposure ✅ decided
+
+**Demo is the last environment. There is no production deployment of this service.** The path is
+sandbox → preview → AAT → demo, and demo is where it lives.
 
 | # | Step | Status | Notes |
 |---|---|---|---|
-| 0.1 | Internal-only, or publicly reachable? | ⚠️ **Decide first** | The AAT host does not resolve publicly; the catalogue does. See "Exposure" in the README. Shapes 4.x and whether APIM routing work is needed. |
+| 0.1 | Internal-only, or publicly reachable? | ✅ **Publicly reachable, in demo** | Demo needs no VPN — that is what demo is for. Two things require it: consumers reach Try-it-out from the public catalogue at `hmcts.github.io`, and CP SIT pushes recordings in over `/admin/recordings` |
+| 0.2 | Demo host, DNS, Front Door, WAF exclusions | ○ To raise | `amp-try-slc.demo.platform.hmcts.net`. The Flux overlay in `platform-prs/` already sets it; the DNS and Front Door entries are separate PRs against `azure-public-dns` and `azure-platform-terraform`, following what `apim-marketplace-web` did for its demo host |
+| 0.3 | Restrict `/admin/**` at the edge | ○ To do | The read API is public by design; the ingest path should not be. Allow-list HMCTS and CP egress rather than exposing it alongside |
+
+> **A production service now depends on a demo one.** The production `service-api-marketplace`
+> calls a **demo-tier APIM** to generate the API keys a developer uses against this sandbox. Demo
+> carries no production SLA and is where platform changes get tried out, so if demo APIM is
+> unavailable, production key issuance fails. Worth an explicit decision rather than discovering it
+> during an incident.
+>
+> Also unconfirmed: [CP APIM vs CNP APIM](https://hmcts.atlassian.net/wiki/spaces/AMP/pages/323486422/CP+APIM+vs+CNP+APIM+Subscriptions+Key+Vaults)
+> lists SDS APIM instances for **sbox and preview only**. Whether a demo instance exists has not
+> been verified from this repo.
 
 ## Phase 1 — Repo
 
@@ -62,7 +79,7 @@ Status: ✅ Done · ⚠️ Decide first · ○ To do
 |---|---|---|---|
 | 2.1 | Generate the demo RSA keypair as a JWK document | ○ To do | Any RSA 2048 JWK export; `kid` is free-form |
 | 2.2 | `az keyvault secret set --vault-name amp-aat --name try-slc-DEMO-SIGNING-KEY-JWK` | ○ To do | |
-| 2.3 | Same for `amp-sbox` if sandbox is wanted | ○ To do | |
+| 2.3 | Same for `amp-try-slc-sbox` if sandbox is wanted | ○ To do | |
 
 > Skipping this does not block a deploy — the service starts with an ephemeral key and logs a
 > warning — but every Flux redeploy would then invalidate every issued token.
@@ -87,8 +104,9 @@ Status: ✅ Done · ⚠️ Decide first · ○ To do
 | 4.3 | Image policy and repository | ○ To raise | Written. Prefer regenerating: `./add-image-policies.sh amp amp try-slc hmctsprod` — the trailing registry is required, the script still defaults to `hmctspublic` |
 | 4.4 | Add to `apps/amp/base/kustomization.yaml` | ○ To raise | Under `resources`. Note the env bases take `patches` instead — adding to the wrong key silently does nothing |
 | 4.5 | Env patches (`aat.yaml`, `sbox.yaml`, `demo.yaml`) | ○ To raise | Written. **No preview patch** — `apps/amp/preview/base` does not include the HelmReleases at all; PR environments are Jenkins-deployed |
-| 4.7 | Prod overlay | ⚠️ Out of scope | `apps/amp/prod/` does not exist for this product, and neither existing component is in `environment-approvals.yml` |
-| 4.6 | Workload identity | ✅ Done | `amp` service account already wired; chart uses `aadIdentityName: amp` |
+| 4.7 | Prod overlay | ⛔ **Never** | Demo is the last environment for this component. Not blocked, not deferred — not wanted. See Phase 0 |
+| 4.8 | Demo patch `apps/amp/amp-try-slc/demo.yaml` | ○ To raise | Written, in `platform-prs/`. Sets the public demo host and the vault mounts. This is the one that matters |
+| 4.6 | Workload identity | ○ To raise | `amp` service account patch NOT yet applied; #48002 deferred it until the `amp-{env}-mi` client id exists |
 
 ## Phase 5 — First build and verify
 
