@@ -3,7 +3,6 @@ plugins {
   id 'jacoco'
   id 'io.spring.dependency-management' version '1.1.7'
   id 'org.springframework.boot' version '4.1.1'
-  id 'com.github.ben-manes.versions' version '0.61.0'
   id 'org.sonarqube' version '7.5.0.8588'
   /*
     Applies analysis tools including checkstyle and OWASP Dependency checker.
@@ -108,16 +107,16 @@ sonarqube {
   }
 }
 
-dependencyUpdates {
-  def isNonStable = { String version ->
-    def stableKeyword = ['RELEASE', 'FINAL', 'GA'].any { qualifier -> version.toUpperCase().contains(qualifier) }
-    def regex = /^[0-9,.v-]+$/
-    return !stableKeyword && !(version ==~ regex)
-  }
-  rejectVersionIf { selection ->
-    return isNonStable(selection.candidate.version) && !isNonStable(selection.currentVersion)
-  }
-}
+// NOTE: the com.github.ben-manes.versions plugin and its dependencyUpdates block were removed.
+//
+// Its implementation artefact, io.github.ben-manes:gradle-versions-plugin, is NOT published to Maven
+// Central - only to the Gradle Plugin Portal, which redirects artefact downloads to a separate host,
+// plugins-artifacts.gradle.org. That makes it fragile on a CNP Jenkins agent, which failed with
+// "Could not resolve io.github.ben-manes:gradle-versions-plugin:0.61.0".
+//
+// Nothing needed it. No Jenkinsfile runs dependencyUpdates, and Renovate - now mandatory in every
+// repo extending the org config - reports outdated dependencies continuously, as PRs, rather than as
+// a report somebody has to remember to run. Do not re-add it; configure Renovate instead.
 
 // The auth sources and the two filters below are lifted from
 // service-cp-crime-scheduleandlist-courtschedule so this sandbox enforces exactly the token rules the
