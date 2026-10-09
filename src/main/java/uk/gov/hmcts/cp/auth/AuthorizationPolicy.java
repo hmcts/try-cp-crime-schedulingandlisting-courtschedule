@@ -47,8 +47,7 @@ public class AuthorizationPolicy {
      *
      * <p>{@code /health}, {@code /info} and {@code /prometheus} are listed <b>explicitly</b> because
      * {@code management.endpoints.web.base-path} is {@code /} in this service (chart-java probes
-     * {@code /health/liveness} and {@code /health/readiness}, not {@code /actuator/health}). The two
-     * probe groups are exact paths too: {@code /health} does not cover them. With a base path of {@code /} the
+     * {@code /health}, not {@code /actuator/health}). With a base path of {@code /} the
      * {@link #publicPathRoots} rule below degenerates — {@code "/health".startsWith("//")} is false —
      * so without these entries the liveness probe is answered with 401 and the pod never becomes
      * ready. Do not remove them without also moving the actuator off the context root.
