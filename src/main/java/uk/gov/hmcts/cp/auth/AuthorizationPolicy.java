@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * Decides which requests need a token, and that the caller holds a recognised role.
@@ -49,6 +50,12 @@ public class AuthorizationPolicy {
      * already publishes the same component detail at {@code /health} itself.
      */
     public static final String HEALTH_PREFIX = "/health";
+
+    /**
+     * A Spring health group name: one path segment of plain identifier characters. Excludes {@code .}
+     * so {@code .} and {@code ..} cannot match, and excludes {@code %} so nothing percent-encoded can.
+     */
+    private static final Pattern HEALTH_GROUP = Pattern.compile("[A-Za-z0-9_-]+");
 
     /** The demo authorisation-server endpoints. A caller must reach these without a token. */
     public static final String PATH_TOKEN = "/oauth2/v2.0/token";
@@ -110,6 +117,14 @@ public class AuthorizationPolicy {
      * with the prefix. Spring publishes one segment per health group, so requiring exactly one
      * segment admits every real probe path and nothing else. {@code AuthorizationPolicyTest} covers
      * both halves.
+     *
+     * <p>The group is matched against {@link #HEALTH_GROUP} rather than merely checked for a
+     * {@code '/'}, because the caller passes {@link jakarta.servlet.http.HttpServletRequest#getRequestURI()},
+     * which is <b>not</b> percent-decoded. A {@code '/'} test alone would accept
+     * {@code /health/%2e%2e%2fcase%2f{urn}%2fcourtschedule} — one segment by that measure, a traversal
+     * once decoded. Tomcat rejects encoded slashes by default, but that is a container default and
+     * not somewhere to put an authorisation boundary. Health group names are plain identifiers, so
+     * the character class costs nothing and closes the question.
      */
     private static boolean isHealthPath(final String path) {
         if (HEALTH_PREFIX.equals(path)) {
@@ -118,8 +133,7 @@ public class AuthorizationPolicy {
         if (!path.startsWith(HEALTH_PREFIX + "/")) {
             return false;
         }
-        final String group = path.substring(HEALTH_PREFIX.length() + 1);
-        return !group.isEmpty() && group.indexOf('/') < 0 && !".".equals(group) && !"..".equals(group);
+        return HEALTH_GROUP.matcher(path.substring(HEALTH_PREFIX.length() + 1)).matches();
     }
 
     /** True for anything the admin realm guards. Static so the admin filter can ask without a bean. */
