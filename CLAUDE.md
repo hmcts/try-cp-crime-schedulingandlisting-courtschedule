@@ -108,7 +108,7 @@ answers 400 naming the offending field. Recordings serve nothing until published
 
 | Symptom | Cause / Fix |
 |---|---|
-| Pod CrashLoopBackOff, probes 401 | `/health`,`/info`,`/prometheus` dropped from `PUBLIC_EXACT_PATHS`. With `base-path: /` the prefix rule cannot match them — see the comment in `AuthorizationPolicy` |
+| Pod CrashLoopBackOff, probes 401 | `/info`/`/prometheus` dropped from `PUBLIC_EXACT_PATHS`, or `isHealthPath` removed. With `base-path: /` the inherited prefix rule cannot match them — see the comments in `AuthorizationPolicy`. `/health` and its groups are a rule, not an enumeration, so a **new health group** is covered automatically; `/healthz` and `/health-admin` are deliberately **not** |
 | Try-it-out fails in browser, curl works | CORS. Check `demo.allowed-origins`, and that preflight is exempt in `ClientIdResolutionFilter` |
 | Try-it-out fails at DNS | Non-prod hosts are internal. Prod is a `platform.hmcts.net` host behind Front Door — see Deployment in README |
 | Intermittent 401 after a deploy | `DEMO_SIGNING_KEY_JWK` not set, so each pod generates its own key. Terraform creates it (`tls_private_key` in `infrastructure/main.tf`); if it is missing, the apply has not run for that environment |

@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * Decides which requests need a token, and that the caller holds a recognised role.
@@ -35,6 +36,27 @@ public class AuthorizationPolicy {
      */
     public static final String ADMIN_PREFIX = "/admin";
 
+    /**
+     * The actuator health endpoint and everything under it.
+     *
+     * <p>This is the one place the "enumerate, never infer" rule above is relaxed, and deliberately.
+     * chart-java probes {@code /health/liveness} and {@code /health/readiness}, and Spring publishes
+     * one path per health group — so enumerating them means the liveness probe starts answering 401
+     * the day somebody adds a group, and the pod stops becoming ready for a reason nothing explains.
+     *
+     * <p>Matched as the exact path or a child of it, never a bare {@code startsWith}: {@code /healthz}
+     * and {@code /health-admin} are <b>not</b> exempt. The blast radius is bounded by what Spring
+     * mounts under {@code /health/}, which is health groups only, and {@code show-details: always}
+     * already publishes the same component detail at {@code /health} itself.
+     */
+    public static final String HEALTH_PREFIX = "/health";
+
+    /**
+     * A Spring health group name: one path segment of plain identifier characters. Excludes {@code .}
+     * so {@code .} and {@code ..} cannot match, and excludes {@code %} so nothing percent-encoded can.
+     */
+    private static final Pattern HEALTH_GROUP = Pattern.compile("[A-Za-z0-9_-]+");
+
     /** The demo authorisation-server endpoints. A caller must reach these without a token. */
     public static final String PATH_TOKEN = "/oauth2/v2.0/token";
     public static final String PATH_JWKS = "/.well-known/jwks.json";
@@ -45,16 +67,17 @@ public class AuthorizationPolicy {
     /**
      * Infrastructure and demo-discovery endpoints, carrying no case data.
      *
-     * <p>{@code /health}, {@code /info} and {@code /prometheus} are listed <b>explicitly</b> because
+     * <p>{@code /info} and {@code /prometheus} are listed <b>explicitly</b> because
      * {@code management.endpoints.web.base-path} is {@code /} in this service (chart-java probes
      * {@code /health}, not {@code /actuator/health}). With a base path of {@code /} the
      * {@link #publicPathRoots} rule below degenerates — {@code "/health".startsWith("//")} is false —
-     * so without these entries the liveness probe is answered with 401 and the pod never becomes
-     * ready. Do not remove them without also moving the actuator off the context root.
+     * so without these entries they are answered with 401. Do not remove them without also moving
+     * the actuator off the context root. {@code /health} and its groups are handled by
+     * {@link #HEALTH_PREFIX} instead.
      */
     private static final Set<String> PUBLIC_EXACT_PATHS = Set.of(
             "/", "", "/error",
-            "/health", "/info", "/prometheus",
+            "/info", "/prometheus",
             PATH_TOKEN, PATH_JWKS, PATH_SCENARIOS);
 
     /**
@@ -81,8 +104,36 @@ public class AuthorizationPolicy {
     public boolean isExemptFromValidation(final String requestUri) {
         final String path = stripTrailingSlash(requestUri);
         return PUBLIC_EXACT_PATHS.contains(path)
+                || isHealthPath(path)
                 || isAdminPath(requestUri)
                 || publicPathRoots.stream().anyMatch(root -> path.equals(root) || path.startsWith(root + "/"));
+    }
+
+    /**
+     * True for {@code /health} and a single health-group segment beneath it, and nothing else.
+     *
+     * <p>Deliberately narrower than {@code startsWith("/health/")}. That form exempts
+     * {@code /health/../case/{urn}/courtschedule} — a data endpoint — because the string does start
+     * with the prefix. Spring publishes one segment per health group, so requiring exactly one
+     * segment admits every real probe path and nothing else. {@code AuthorizationPolicyTest} covers
+     * both halves.
+     *
+     * <p>The group is matched against {@link #HEALTH_GROUP} rather than merely checked for a
+     * {@code '/'}, because the caller passes {@link jakarta.servlet.http.HttpServletRequest#getRequestURI()},
+     * which is <b>not</b> percent-decoded. A {@code '/'} test alone would accept
+     * {@code /health/%2e%2e%2fcase%2f{urn}%2fcourtschedule} — one segment by that measure, a traversal
+     * once decoded. Tomcat rejects encoded slashes by default, but that is a container default and
+     * not somewhere to put an authorisation boundary. Health group names are plain identifiers, so
+     * the character class costs nothing and closes the question.
+     */
+    private static boolean isHealthPath(final String path) {
+        if (HEALTH_PREFIX.equals(path)) {
+            return true;
+        }
+        if (!path.startsWith(HEALTH_PREFIX + "/")) {
+            return false;
+        }
+        return HEALTH_GROUP.matcher(path.substring(HEALTH_PREFIX.length() + 1)).matches();
     }
 
     /** True for anything the admin realm guards. Static so the admin filter can ask without a bean. */
