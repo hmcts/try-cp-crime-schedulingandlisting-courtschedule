@@ -6,6 +6,8 @@ management:
   endpoint:
     health:
       show-details: "always"
+      probes:
+        enabled: true
   endpoints:
     web:
       # Kept at "/" to match the chart-java probe paths (/health, /info). Note this makes the

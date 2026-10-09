@@ -13,7 +13,7 @@ class AuthorizationPolicyTest {
     private final AuthorizationPolicy policy = new AuthorizationPolicy("/");
 
     @ParameterizedTest
-    @ValueSource(strings = {"/health", "/info", "/prometheus"})
+    @ValueSource(strings = {"/health", "/health/liveness", "/health/readiness", "/info", "/prometheus"})
     @DisplayName("actuator probes are exempt even though the actuator base path is '/'")
     void actuatorProbesAreExempt(final String path) {
         // Regression guard. With base-path "/", the inherited prefix rule degenerates to

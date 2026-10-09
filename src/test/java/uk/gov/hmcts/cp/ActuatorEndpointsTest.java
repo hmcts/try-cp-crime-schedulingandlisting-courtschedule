@@ -2,6 +2,8 @@ package uk.gov.hmcts.cp;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -60,6 +62,15 @@ class ActuatorEndpointsTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("UP"))
                 .andExpect(jsonPath("$.components.db.status").value("UP"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"/health/liveness", "/health/readiness"})
+    @DisplayName("probe_groups_should_answer_200_at_the_paths_chart_java_calls")
+    void probeGroupsAnswerAtTheChartPaths(final String path) throws Exception {
+        mockMvc.perform(get(path))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UP"));
     }
 
     @Test
