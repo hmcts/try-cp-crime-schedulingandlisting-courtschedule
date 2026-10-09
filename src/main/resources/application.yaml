@@ -17,7 +17,7 @@ management:
 
 spring:
   config:
-    import: "optional:configtree:/mnt/secrets/amp/,optional:configtree:/mnt/secrets/amp-sbox/"
+    import: "optional:configtree:/mnt/secrets/amp-try-slc/,optional:configtree:/mnt/secrets/amp-try-slc-sbox/"
   application:
     name: try-cp-crime-schedulingandlisting-courtschedule
   datasource:
