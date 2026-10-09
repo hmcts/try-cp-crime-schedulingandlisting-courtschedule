@@ -15,6 +15,6 @@ withPipeline(type, product, component) {
   // identity - which already has Set on the vault, so no human needs write access.
   // Create-only: see the note in bin/ensure-demo-signing-key.sh about rotation.
   afterSuccess('buildinfra:aat') {
-    sh './bin/ensure-demo-signing-key.sh amp-try-slc-aat'
+    sh "${env.WORKSPACE}/bin/ensure-demo-signing-key.sh amp-try-slc-aat"
   }
 }

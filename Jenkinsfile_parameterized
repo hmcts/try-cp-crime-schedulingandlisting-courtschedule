@@ -11,6 +11,6 @@ withParameterizedPipeline('java', 'amp', 'try-slc', params.ENVIRONMENT, 'sandbox
   // Sandbox's vault is amp-try-slc-sbox, not amp-try-slc-sandbox: sandbox.tfvars overrides
   // vault_name, because Key Vault names are globally unique and short.
   afterSuccess('buildinfra:sandbox') {
-    sh './bin/ensure-demo-signing-key.sh amp-try-slc-sbox'
+    sh "${env.WORKSPACE}/bin/ensure-demo-signing-key.sh amp-try-slc-sbox"
   }
 }
