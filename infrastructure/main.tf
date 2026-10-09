@@ -127,3 +127,18 @@ resource "azurerm_key_vault_secret" "postgres_database" {
   key_vault_id = module.vault.key_vault_id
   depends_on   = [module.vault]
 }
+
+
+# tls_private_key is not in cnp-jenkins-config's global allow-list; it is approved for this repo in
+# terraform-infra-approvals/try-cp-crime-schedulingandlisting-courtschedule.json.
+resource "tls_private_key" "demo_signing_key" {
+  algorithm = "RSA"
+  rsa_bits  = 2048
+}
+
+resource "azurerm_key_vault_secret" "demo_signing_key" {
+  name         = "try-slc-DEMO-SIGNING-KEY-JWK"
+  value        = tls_private_key.demo_signing_key.private_key_pem_pkcs8
+  key_vault_id = module.vault.key_vault_id
+  depends_on   = [module.vault]
+}
