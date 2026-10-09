@@ -17,7 +17,11 @@ management:
 
 spring:
   config:
-    import: "optional:configtree:/mnt/secrets/amp/,optional:configtree:/mnt/secrets/amp-sbox/"
+    # chart-java mounts each keyVaults entry at /mnt/secrets/<key>: amp-try-slc in AAT and preview
+    # (charts/amp-try-slc/values.*.template.yaml), amp-try-slc-sbox in sandbox (the cnp-flux-config
+    # overlay). These must follow the vault name - "optional:" means a wrong path fails silently,
+    # with the app falling back to localhost Postgres and an ephemeral signing key.
+    import: "optional:configtree:/mnt/secrets/amp-try-slc/,optional:configtree:/mnt/secrets/amp-try-slc-sbox/"
   application:
     name: try-cp-crime-schedulingandlisting-courtschedule
   datasource:
