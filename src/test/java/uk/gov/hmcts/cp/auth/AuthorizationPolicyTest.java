@@ -13,7 +13,8 @@ class AuthorizationPolicyTest {
     private final AuthorizationPolicy policy = new AuthorizationPolicy("/");
 
     @ParameterizedTest
-    @ValueSource(strings = {"/health", "/health/liveness", "/health/readiness", "/info", "/prometheus"})
+    @ValueSource(strings = {"/health", "/health/liveness", "/health/readiness", "/health/anyFutureGroup",
+                            "/info", "/prometheus"})
     @DisplayName("actuator probes are exempt even though the actuator base path is '/'")
     void actuatorProbesAreExempt(final String path) {
         // Regression guard. With base-path "/", the inherited prefix rule degenerates to
@@ -63,5 +64,16 @@ class AuthorizationPolicyTest {
                 .isInstanceOf(TokenValidationException.class)
                 .extracting(ex -> ((TokenValidationException) ex).getReason())
                 .isEqualTo(TokenValidationException.Reason.INSUFFICIENT_ROLE);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"/healthz", "/health-admin", "/healthcheck", "/healthy/thing",
+                            "/health/../case/TIN-ALLOCATED-01/courtschedule",
+                            "/health/liveness/extra"})
+    @DisplayName("the health rule matches /health and its children only, never a longer first segment")
+    void pathsThatMerelyStartWithHealthAreNotExempt(final String path) {
+        // Guards the one place the enumerate-never-infer rule is relaxed. A bare startsWith("/health")
+        // would hand these away, and a future endpoint named like this would be silently public.
+        assertThat(policy.isExemptFromValidation(path)).isFalse();
     }
 }
