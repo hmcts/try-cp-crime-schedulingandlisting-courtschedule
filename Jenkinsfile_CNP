@@ -9,12 +9,4 @@ def component = "try-slc"
 withPipeline(type, product, component) {
   enableAksStagingDeployment()
   disableLegacyDeployment()
-
-  // The demo token signing key has no other owner. Terraform makes the POSTGRES-* secrets;
-  // this one is created here, after the vault exists, by the environment's own Jenkins
-  // identity - which already has Set on the vault, so no human needs write access.
-  // Create-only: see the note in bin/ensure-demo-signing-key.sh about rotation.
-  afterSuccess('buildinfra:aat') {
-    sh "${env.WORKSPACE}/bin/ensure-demo-signing-key.sh amp-try-slc-aat"
-  }
 }
