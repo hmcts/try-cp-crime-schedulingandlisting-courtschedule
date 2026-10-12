@@ -17,6 +17,8 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -35,7 +37,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * a recording — and a functional failure uninstalls the helm release
  * ({@code sectionDeployToAKS.groovy:189}), so a brittle assertion here costs a deployment. For the
  * same reason the case URNs are read from {@code /scenarios} rather than hardcoded: the sandbox
- * publishes which URN produces which status, and this suite takes it at its word.
+ * publishes which URN produces which status, and this suite takes it at its word. Every URN with a
+ * given status is exercised, never just the first — {@code ScenarioCatalog.all()} iterates a
+ * {@code Map.copyOf} map, whose order the JDK randomises per JVM run, so "the first 200 scenario"
+ * is a different fixture on different pods.
  *
  * <p>In-process equivalents of the auth rules live in {@code DemoTokenRoundTripTest}. What only this
  * suite can prove is that they survive the deployed configuration — the vault-mounted signing key,
@@ -114,7 +119,7 @@ class FunctionalTest {
     @Test
     @DisplayName("the court schedule endpoint refuses an unauthenticated call")
     void courtScheduleRequiresTheToken() throws IOException, InterruptedException {
-        final HttpResponse<String> response = get(pathOfScenarioAnswering(200), null);
+        final HttpResponse<String> response = get(pathsOfScenariosAnswering(200).getFirst(), null);
 
         assertThat(response.statusCode())
                 .describedAs("a 200 here would mean the read API had been exempted from token "
@@ -124,22 +129,41 @@ class FunctionalTest {
     }
 
     @Test
-    @DisplayName("an entitled token fetches a published schedule, contract-shaped")
-    void entitledTokenFetchesASchedule() throws IOException, InterruptedException {
-        final HttpResponse<String> response =
-                get(pathOfScenarioAnswering(200), tokenFor(DemoClientRegistry.READER_CLIENT_ID));
+    @DisplayName("an entitled token fetches every published schedule, contract-shaped")
+    void entitledTokenFetchesEverySchedule() throws IOException, InterruptedException {
+        final String token = tokenFor(DemoClientRegistry.READER_CLIENT_ID);
+        boolean sawAnIdentifiedHearing = false;
 
-        assertThat(response.statusCode()).isEqualTo(200);
+        for (final String path : pathsOfScenariosAnswering(200)) {
+            final HttpResponse<String> response = get(path, token);
 
-        final JsonNode courtSchedule = mapper.readTree(response.body()).get("courtSchedule");
-        assertThat(courtSchedule)
-                .describedAs("the contract's top-level array")
-                .isNotNull();
-        assertThat(courtSchedule.isArray()).isTrue();
-        assertThat(courtSchedule).isNotEmpty();
-        assertThat(courtSchedule.get(0).path("hearings").get(0).path("hearingId").asText())
-                .describedAs("every published 200 scenario carries at least one identified hearing")
-                .isNotBlank();
+            assertThat(response.statusCode())
+                    .describedAs("GET %s - /scenarios publishes this URN as a 200", path)
+                    .isEqualTo(200);
+
+            final JsonNode courtSchedule = mapper.readTree(response.body()).get("courtSchedule");
+            assertThat(courtSchedule)
+                    .describedAs("%s - the contract's top-level array", path)
+                    .isNotNull();
+            assertThat(courtSchedule.isArray())
+                    .describedAs("%s - courtSchedule must be an array; an empty one is a valid 200, "
+                            + "which is why this does not assert it is populated", path)
+                    .isTrue();
+
+            for (final JsonNode entry : courtSchedule) {
+                for (final JsonNode hearing : entry.path("hearings")) {
+                    assertThat(hearing.path("hearingId").asText())
+                            .describedAs("%s - every hearing the contract defines carries an id", path)
+                            .isNotBlank();
+                    sawAnIdentifiedHearing = true;
+                }
+            }
+        }
+
+        assertThat(sawAnIdentifiedHearing)
+                .describedAs("not one published 200 scenario carried a hearing - the sandbox exists to "
+                        + "serve examples, so an estate of entirely empty schedules is a fault")
+                .isTrue();
     }
 
     @Test
@@ -148,35 +172,44 @@ class FunctionalTest {
         // A real 403 from the copied validator, not a fixture: the client's token verifies, it simply
         // carries no application role. See DemoTokenRoundTripTest for which layer refuses it.
         final HttpResponse<String> response =
-                get(pathOfScenarioAnswering(200), tokenFor(DemoClientRegistry.NO_ROLE_CLIENT_ID));
+                get(pathsOfScenariosAnswering(200).getFirst(), tokenFor(DemoClientRegistry.NO_ROLE_CLIENT_ID));
 
         assertThat(response.statusCode()).isEqualTo(403);
         assertThat(response.body()).contains("insufficient_scope");
     }
 
     @Test
-    @DisplayName("the URN published as a 404 answers 404 even for an entitled caller")
-    void unknownCaseUrnAnswersNotFound() throws IOException, InterruptedException {
-        final HttpResponse<String> response =
-                get(pathOfScenarioAnswering(404), tokenFor(DemoClientRegistry.READER_CLIENT_ID));
+    @DisplayName("every URN published as a 404 answers 404, even for an entitled caller")
+    void urnsPublishedAsNotFoundAnswerNotFound() throws IOException, InterruptedException {
+        final String token = tokenFor(DemoClientRegistry.READER_CLIENT_ID);
 
-        assertThat(response.statusCode()).isEqualTo(404);
+        for (final String path : pathsOfScenariosAnswering(404)) {
+            assertThat(get(path, token).statusCode())
+                    .describedAs("GET %s - /scenarios publishes this URN as a 404", path)
+                    .isEqualTo(404);
+        }
     }
 
     /**
-     * The path of the first scenario {@code /scenarios} says answers {@code status}, already
-     * substituted with its case URN by {@code ScenarioController}.
+     * The paths of every scenario {@code /scenarios} says answers {@code status}, already substituted
+     * with their case URNs by {@code ScenarioController}.
      */
-    private String pathOfScenarioAnswering(final int status) {
+    private List<String> pathsOfScenariosAnswering(final int status) {
+        final List<String> paths = new ArrayList<>();
+
         for (final JsonNode scenario : scenarios.path("scenarios")) {
             if (scenario.path("status").asInt() == status) {
-                return scenario.path("path").asText();
+                paths.add(scenario.path("path").asText());
             }
         }
-        throw new AssertionError(
-                "No scenario published at " + AuthorizationPolicy.PATH_SCENARIOS + " answers " + status
-                        + ". Either the fixtures failed to seed, or stubs/scenarios.yaml no longer "
-                        + "covers that outcome.");
+
+        assertThat(paths)
+                .describedAs("no scenario published at %s answers %d - either the fixtures failed to "
+                        + "seed, or stubs/scenarios.yaml no longer covers that outcome",
+                        AuthorizationPolicy.PATH_SCENARIOS, status)
+                .isNotEmpty();
+
+        return paths;
     }
 
     private String tokenFor(final UUID clientId) throws IOException, InterruptedException {
