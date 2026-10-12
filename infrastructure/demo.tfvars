@@ -1,2 +1,2 @@
-aks_subscription_id = "96c274ce-846d-4e48-89a7-d528432298a7"
+aks_subscription_id = "d025fece-ce99-4df2-b7a9-b649d3ff2060"
 pgsql_subnet_suffix = "expanded"
