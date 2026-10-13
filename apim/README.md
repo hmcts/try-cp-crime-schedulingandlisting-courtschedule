@@ -1,0 +1,125 @@
+# apim — APIM registration
+
+Terraform that registers this sandbox's **public** contract with the HMCTS Shared Platform
+Services APIM, so a prospective consumer can reach it without a VPN.
+
+Modelled on `api-cp-crime-schedulingandlisting-courtschedule/infrastructure`. Read that first if
+this is unfamiliar — the differences are the interesting part, and they are listed below.
+
+## Why not `infrastructure/`?
+
+Because `infrastructure/` is already taken. The CNP Jenkins pipeline runs its own Terraform there
+for the key vault, the Postgres server and the demo signing key, with its own state backend and
+its own `aat`/`demo`/`prod`/`sandbox` tfvars. Adding APIM resources to that directory would make
+every Jenkins apply try to create them too, with variables it has never heard of.
+
+Two directories, two states, two pipelines. `apim/` is driven only by
+`.github/workflows/terraform-apim.yaml`; Jenkins never looks at it.
+
+| | `infrastructure/` | `apim/` |
+|---|---|---|
+| Driven by | Jenkins (`Jenkinsfile_CNP`) | GitHub Actions (`terraform-apim.yaml`) |
+| Creates | Key vault, Postgres, signing key | APIM product and API |
+| Subscription | CNP | DTS-SPS-\* |
+
+## What it creates
+
+| Resource | Detail |
+|---|---|
+| APIM Product | `try-it-now-cp-crime-schedulingandlisting` |
+| APIM API | `public` — from `../contracts/try-it-now-public.openapi.yml`, at path `amp/try/slc` |
+| API policy | Rate limit, quota, concurrency. **No `validate-jwt`** — see `policies/api-policy.xml` |
+
+The OpenAPI spec is the source of truth: display name, operations and schemas all come from it.
+
+`try-it-now-admin.openapi.yml` is **not** registered, and must not be. It writes data that ends up
+on a public endpoint, and is guarded by `AdminAuthFilter` and a real corporate Entra token. See
+`contracts/README.md`.
+
+## Three differences from the api-cp version
+
+**1. `service_url` is given whole, not composed.** The api-cp Terraform builds
+`"https://${service_host}.org.uk${service_path}"` because every backend it registers is a Common
+Platform app gateway. This sandbox runs in CNP, where hosts end `.platform.hmcts.net`, so that
+expression would append `.org.uk` to a host that does not have it.
+
+**2. No `validate-jwt`.** The sandbox issues and verifies its own tokens, and every path in the
+public contract is unauthenticated by design. The full reasoning is in the comment at the top of
+`policies/api-policy.xml`; the short version is that edge enforcement would reject every demo token
+and delete the behaviour the sandbox exists to demonstrate.
+
+**3. No prod.** Demo is the last environment for this service. There is no `prod.tfvars` and no
+prod job in the workflow.
+
+## CI/CD
+
+| Trigger | Action |
+|---|---|
+| Pull request to `master` | `terraform plan`, posted as a PR comment |
+| Push to `master` | `terraform apply` |
+| Manual dispatch | Choose `plan` or `apply` |
+
+Environments are discovered from `*.tfvars` in this directory, so adding `aat.tfvars` adds an aat
+job with no workflow change. `aat` is gated behind a GitHub environment approval.
+
+Authentication is OpenID Connect — no secrets are stored. Terraform state is keyed by repository
+name (`<repo>/<env>/terraform.tfstate`), so sharing the `spsapimapi<env>state` account with the
+api-cp repo is safe.
+
+### Required GitHub Actions variables
+
+Set on the repository under Settings → Secrets and variables → Variables:
+
+| Variable | Value |
+|---|---|
+| `AZURE_CLIENT_ID_SBOX` | Client ID of the OIDC app registration for sbox |
+| `AZURE_SUBSCRIPTION_SBOX` | `bd2864ed-4f3e-45ed-9c6a-8d179674bab1` (DTS-SPS-SBOX) |
+| `AZURE_SUBSCRIPTION_ID_SBOX` | `bd2864ed-4f3e-45ed-9c6a-8d179674bab1` |
+| `TFSTATE_STORAGE_ACCOUNT_NONPROD` | Storage account for non-prod Terraform state |
+
+The app registration needs a federated credential whose subject is
+`repo:hmcts/try-cp-crime-schedulingandlisting-courtschedule:ref:refs/heads/master`, and Contributor
+on the APIM instance.
+
+## Running locally
+
+```bash
+az login
+az account set --subscription bd2864ed-4f3e-45ed-9c6a-8d179674bab1
+
+cd apim
+terraform init
+terraform plan -var-file=sbox.tfvars
+```
+
+## Adding an environment
+
+1. Copy `sbox.tfvars` to `<env>.tfvars`.
+2. Update `api_mgmt_rg`, `api_mgmt_name` and the API's `service_url` for that environment.
+3. Set `AZURE_CLIENT_ID_<ENV>`, `AZURE_SUBSCRIPTION_<ENV>` and `AZURE_SUBSCRIPTION_ID_<ENV>` on the repo.
+4. Raise a PR — the workflow picks it up automatically.
+
+## Open: the domain API
+
+A consumer is meant to see one catalogue entry made of two specs — the sandbox plumbing here, and
+the API being demonstrated, which lives in
+`api-cp-crime-schedulingandlisting-courtschedule/src/main/resources/openapi/openapi-spec.yml`.
+
+That file is not in this repository, and `openapi_spec_path` is a path in the Terraform checkout,
+so it cannot be referenced from here. The natural home for it is the repo that owns it: one more
+entry in **that** repo's `apis` map, pointing at this sandbox instead of the Common Platform
+gateway.
+
+```hcl
+# in api-cp-.../infrastructure/sbox.tfvars
+try_it_now = {
+  openapi_spec_path = "../src/main/resources/openapi/openapi-spec.yml"
+  display_name      = "Crime Scheduling and Listing Schedule API (Try It Now)"
+  path              = "amp/try/slc/api"
+  service_host      = "..."   # needs the service_url escape hatch this repo added
+  required_roles    = ["app.read"]
+}
+```
+
+It needs the same `service_url` change made here, and the JWT policy question answered — a demo
+token will not pass that repo's `validate-jwt`. Worth settling before copying this across.
