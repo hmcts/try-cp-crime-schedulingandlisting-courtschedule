@@ -70,16 +70,35 @@ api-cp repo is safe.
 
 Set on the repository under Settings → Secrets and variables → Variables:
 
+Note that the two subscription variables hold different things — a name and a GUID. The values
+below are the ones set on `api-cp-crime-schedulingandlisting-courtschedule`, which targets the same
+APIM instance.
+
 | Variable | Value |
 |---|---|
-| `AZURE_CLIENT_ID_SBOX` | Client ID of the OIDC app registration for sbox |
-| `AZURE_SUBSCRIPTION_SBOX` | `bd2864ed-4f3e-45ed-9c6a-8d179674bab1` (DTS-SPS-SBOX) |
-| `AZURE_SUBSCRIPTION_ID_SBOX` | `bd2864ed-4f3e-45ed-9c6a-8d179674bab1` |
+| `AZURE_CLIENT_ID_SBOX` | Client ID of **this repo's** OIDC app registration (not the api-cp one) |
+| `AZURE_SUBSCRIPTION_SBOX` | `DTS-SPS-SBOX` — the subscription *name* |
+| `AZURE_SUBSCRIPTION_ID_SBOX` | `bd2864ed-4f3e-45ed-9c6a-8d179674bab1` — the subscription *id* |
 | `TFSTATE_STORAGE_ACCOUNT_NONPROD` | Storage account for non-prod Terraform state |
 
-The app registration needs a federated credential whose subject is
-`repo:hmcts/try-cp-crime-schedulingandlisting-courtschedule:ref:refs/heads/master`, and Contributor
-on the APIM instance.
+The app registration must be this repository's own, because the federated credential is pinned to a
+subject that names the repo: `repo:hmcts/try-cp-crime-schedulingandlisting-courtschedule:ref:refs/heads/master`.
+It needs Contributor on the APIM instance.
+
+## Acceptance test
+
+APIM's runtime behaviour cannot be checked without an instance, so the first apply is the proof.
+The API sets `subscription_required = false` inside a product that sets it `true` — supported, and
+the reason discovery works without a key. Confirm it:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' \
+  https://sps-api-mgmt-sbox.azure-api.net/amp/try/slc/scenarios
+```
+
+`200` means the open-API setting is honoured. `401 Access denied due to missing subscription key`
+means it is not, and the flag has to move to the product. Check the gateway hostname against the
+first plan output — `azure-api.net` is the default, but SPS may use a custom domain.
 
 ## Running locally
 
