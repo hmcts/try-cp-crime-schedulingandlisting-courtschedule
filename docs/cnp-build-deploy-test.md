@@ -22,9 +22,9 @@ Where a specific line matters it is cited as `path:line`.
 
 Citations to the Jenkins shared library (`vars/*.groovy`, `src/uk/gov/hmcts/contino/*.groovy`) are
 against **`hmcts/cnp-jenkins-library` at tag 2.12.2**. `Jenkinsfile_CNP:3` pins
-`@Library("Infrastructure@2.7.2")`, and `Jenkinsfile_nightly` pins nothing at all. The *behaviour*
-described was checked in 2.12.2; whether the line numbers match 2.7.2 is **unverified** — to
-confirm, check out the `2.7.2` tag of that repo and re-grep. Citations to `cnp-flux-config` and
+`@Library("Infrastructure@2.7.2")`, and `Jenkinsfile_nightly` pins nothing at all. The citations
+this guide leans on were re-checked at 2.7.2 and the line numbers are identical; the rest were not.
+The closing section says which. To check any other one, `git show 2.7.2:<path>` in that repo. Citations to `cnp-flux-config` and
 `cnp-jenkins-config` are against local clones of `master` taken on 7 October 2026
 (`cnp-flux-config` at `596ee0520c9`); both repos change daily.
 
@@ -1091,13 +1091,19 @@ failures — CORS, the two auth realms, contract drift, the OpenAPI generator le
 
 ## What is not verified in this document
 
-- Jenkins library line numbers are from tag **2.12.2**; `Jenkinsfile_CNP` pins `2.7.2`. Behaviour was
-  read in 2.12.2 only.
+- Jenkins library citations were read at tag **2.12.2**. The ones this guide leans on were
+  re-checked against **2.7.2**, the tag `Jenkinsfile_CNP:3` actually pins, and the line numbers are
+  identical there: `AppPipelineDsl.groovy:121,125-126` (the cleanup flag and its opt-out),
+  `GradleBuilder.groovy:99,126,128` (the `junit` calls), `AzPrivateDns.groovy:77,85` (the A record)
+  and `withParameterizedPipeline.groovy:96` (the single `sectionDeployToEnvironment` call). Other
+  citations in this document were **not** re-checked at 2.7.2.
 - Whether `tls_private_key` is actually refused by the Terraform approvals gate, and whether a
   non-approved plan warns or fails in **2.7.2**. In 2.12.2 it warns.
 - Whether a preview A record is written, given `active: false` for the preview zone.
-- "F5" as the VPN product is the team's name for it. What is verified from files is that the zones
-  are Azure *private* DNS zones and therefore need network access to resolve.
+- "F5" as the VPN product is not named by the platform docs, which say only "VPN access". It is
+  corroborated outside these files: the client's posture check reports itself as F5 BIG-IP APM with
+  an OPSWAT OESIS build. What is verified from files is that the zones are Azure *private* DNS zones
+  and therefore need network access to resolve.
 - Whether a cluster-side nightly sweep of `enable_keep_helm` releases exists, separately from the
   end-of-build uninstall the library performs.
 - The Dockerfile's `ARG APP_INSIGHTS_AGENT_VERSION` and the base image's entrypoint. The contents of
