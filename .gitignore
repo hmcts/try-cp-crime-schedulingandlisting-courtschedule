@@ -31,10 +31,9 @@ applicationinsights-agent-*.jar
 .terraform.lock.hcl
 
 ### Local environment ###
-# Not how this repo configures local runs - that is the `local` Spring profile in
-# src/main/resources/application-local.yaml. Ignored anyway so that a .env someone creates out of
-# habit, or that a tool drops in, cannot be committed with a real credential in it.
-# A template named exactly .env.example stays committable.
+# .env holds whatever you actually run with and must never be committed; .envrc is the one-line
+# direnv stanza that loads it. The committed template is .env.example.
 .env
 .env.*
 !.env.example
+.envrc

@@ -57,22 +57,6 @@ tasks.withType(JavaExec).configureEach {
   javaLauncher.set(javaToolchains.launcherFor(java.toolchain))
 }
 
-// Local-only configuration for `./gradlew bootRun`.
-//
-// The overrides live in src/main/resources/application-local.yaml and are applied by Spring's own
-// profile mechanism rather than an env file - same precedence rules as every other property in the
-// service, and nothing to parse.
-//
-// Only bootRun activates it. The test, integration, smoke and functional tasks do not, and nothing
-// in the Dockerfile or the Helm chart sets SPRING_PROFILES_ACTIVE, so the profile is inert
-// everywhere the service is actually deployed.
-//
-// Override with `./gradlew bootRun -Pprofiles=local,debug`, or set SPRING_PROFILES_ACTIVE, which
-// wins because Spring reads the environment ahead of the system property.
-tasks.named('bootRun') {
-  systemProperty 'spring.profiles.active', providers.gradleProperty('profiles').getOrElse('local')
-}
-
 tasks.withType(Test).configureEach {
   useJUnitPlatform()
   failFast = true

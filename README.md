@@ -84,54 +84,65 @@ scenarios and the two demo clients — is in [docs/consumer-flow.md](docs/consum
 
 ## Local development
 
+### 1. Start Postgres
+
 ```bash
-# Postgres is required - the store is no longer files.
-# Published on 55432 deliberately: a native Postgres on 5432 silently shadows the container
-# and the app fails with `role "postgres" does not exist`.
 docker run -d --name tin-pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=tryitnow \
   -p 55432:5432 postgres:16-alpine
+```
 
+**55432, not 5432, and the reason is worth knowing.** A natively installed Postgres listening on
+`127.0.0.1:5432` shadows a Docker container published on the same port — the specific bind beats
+Docker's wildcard — and the app then fails with `FATAL: role "postgres" does not exist`. That reads
+like a credentials problem and is really a wrong-server problem.
+
+### 2. Set the environment
+
+Everything the service reads is an environment variable with a default in `application.yaml`. There
+is no local Spring profile: what you run locally is configured exactly the way a deployed
+environment is, which is the point.
+
+[`.env.example`](.env.example) is the committed template. Copy it and let
+[direnv](https://direnv.net/) load it, the same way `service-cp-crime-hearing-results-document-subscription`
+does:
+
+```bash
+cp .env.example .env          # .env and .envrc are already git-ignored
+printf 'dotenv\n' > .envrc    # tells direnv to load .env
+direnv allow
+```
+
+`brew install direnv`, then [hook it into your shell](https://direnv.net/docs/hook.html). Without
+direnv, export the variables yourself or put them in front of the command — direnv only saves you
+from retyping them.
+
+**Never commit `.env`.** Deployed environments take their secrets from the `amp-try-slc-{env}` key
+vault, mounted by Flux.
+
+| Variable | Default | What it does |
+|---|---|---|
+| `POSTGRES_HOST` | `localhost` | |
+| `POSTGRES_PORT` | `5432` | **Set this to 55432** — see above |
+| `POSTGRES_DATABASE` | `tryitnow` | |
+| `POSTGRES_USER` | `postgres` | |
+| `POSTGRES_PASS` | `postgres` | |
+| `ADMIN_DISABLED` | `false` | **Set this true locally.** The admin realm verifies against a real corporate Entra tenant and refuses to start half-configured; true makes `/admin/**` answer 503 rather than leaving it unguarded |
+| `ADMIN_TENANT_ID`, `ADMIN_AUDIENCE`, `ADMIN_ISSUER`, `ADMIN_JWKS_URI` | empty | Only needed with `ADMIN_DISABLED=false`, to work on the recording pipeline itself |
+| `DEMO_SIGNING_KEY_JWK` | empty | Unset, an ephemeral key is generated and a warning logged — correct locally. Generate your own if you need one stable across restarts; never copy a deployed environment's |
+| `RECORDING_SEED_FIXTURES` | `true` | false shows how a genuinely empty environment behaves |
+| `SERVER_PORT` | `8080` | |
+
+### 3. Run it
+
+```bash
 ./gradlew build      # compile, contract-check fixtures, integration tests
-./gradlew bootRun    # no environment variables needed
+./gradlew bootRun
 curl localhost:8080/scenarios
+curl localhost:8080/health
 ```
 
 `./gradlew build` needs Docker running — the store and the full ingest/publish journey are tested
 against a real Postgres via TestContainers, not an in-memory substitute.
-
-### Configuration
-
-`bootRun` runs under the **`local` Spring profile**, so the defaults live in
-[`src/main/resources/application-local.yaml`](src/main/resources/application-local.yaml) rather than
-in the command line. It points the datasource at 55432 and turns the admin realm off — that realm
-verifies against a real Entra tenant and refuses to start without one, so locally `/admin/**`
-answers 503 rather than being left unguarded. Nothing else activates the profile: not the test
-tasks, not the `Dockerfile`, not the Helm chart.
-
-For anything you want to differ from everyone else's, there is a **`.env`**, the same convention the
-JavaScript projects here use:
-
-```bash
-cp .env.example .env     # then edit it
-./gradlew bootRun
-```
-
-[`.env.example`](.env.example) is committed and documents every variable worth setting. `.env` is
-gitignored and must never hold a real credential — deployed environments take their secrets from the
-`amp-try-slc-{env}` key vault, mounted by Flux.
-
-You do not need one. A clean checkout runs with nothing set up, because the import is optional.
-
-No dotenv library is involved: `application-local.yaml` imports the file with
-`spring.config.import: "optional:file:.env[.properties]"`, and Spring reads `KEY=VALUE` natively —
-comments and blank lines included. Precedence runs lowest to highest:
-
-```
-application.yaml  <  application-local.yaml  <  .env  <  a real environment variable
-```
-
-So `POSTGRES_PORT=5432 ./gradlew bootRun` still beats both files. Run a different set of profiles
-with `./gradlew bootRun -Pprofiles=local,something`.
 
 The `api-cp-*` artefact resolves from the HMCTS Azure Artifacts feed. To build against an unreleased
 spec, publish it locally first:
