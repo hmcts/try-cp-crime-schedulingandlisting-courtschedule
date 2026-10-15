@@ -1,0 +1,28 @@
+# Local development overrides. Active only under the `local` profile, which `./gradlew bootRun`
+# sets and nothing else does - not the test tasks, not the Dockerfile, not the Helm chart. Deployed
+# environments never see any of this.
+#
+# Keep every value here either a local-only default or published demo material. Real secrets come
+# from the amp-try-slc-{env} key vault, mounted by Flux, and must not be written into the repo.
+#
+# Each entry keeps the ${ENV_VAR:default} form from application.yaml, so an environment variable
+# still wins over the value below. Only the fallback changes.
+
+spring:
+  datasource:
+    # Port 55432, not 5432, on purpose. A natively installed Postgres listening on 127.0.0.1:5432
+    # shadows a Docker container published on the same port - the specific bind beats Docker's
+    # wildcard - and the app then fails with `role "postgres" does not exist`. That reads like a
+    # permissions problem and is actually a wrong-server problem, which is what makes it expensive.
+    #
+    #     docker run -d --name tin-pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=tryitnow \
+    #       -p 55432:5432 postgres:16-alpine
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:55432}/${POSTGRES_DATABASE:tryitnow}
+
+admin:
+  auth:
+    # The admin realm verifies against a real corporate Entra tenant and refuses to start without
+    # one, so locally it is turned off: /admin/** answers 503 rather than being left unguarded.
+    # To work on the recording pipeline itself, set the ADMIN_* variables and run with
+    # ADMIN_DISABLED=false, which overrides this.
+    disabled: ${ADMIN_DISABLED:true}

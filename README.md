@@ -91,16 +91,24 @@ scenarios and the two demo clients — is in [docs/consumer-flow.md](docs/consum
 docker run -d --name tin-pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=tryitnow \
   -p 55432:5432 postgres:16-alpine
 
-./gradlew build                                        # compile, contract-check fixtures, integration tests
-POSTGRES_PORT=55432 ADMIN_DISABLED=true ./gradlew bootRun
+./gradlew build      # compile, contract-check fixtures, integration tests
+./gradlew bootRun    # no environment variables needed
 curl localhost:8080/scenarios
 ```
 
 `./gradlew build` needs Docker running — the store and the full ingest/publish journey are tested
 against a real Postgres via TestContainers, not an in-memory substitute.
 
-`ADMIN_DISABLED=true` is needed locally because the admin realm verifies against a real Entra tenant
-and refuses to start without one. It makes `/admin/**` answer 503 rather than leaving it open.
+`bootRun` runs under the **`local` Spring profile**, so the overrides live in
+[`src/main/resources/application-local.yaml`](src/main/resources/application-local.yaml) rather than
+in the command line. It points the datasource at 55432 and turns the admin realm off — that realm
+verifies against a real Entra tenant and refuses to start without one, so locally `/admin/**`
+answers 503 rather than being left unguarded.
+
+Nothing else activates the profile: not the test tasks, not the Dockerfile, not the Helm chart. Each
+entry keeps the `${ENV_VAR:default}` form from `application.yaml`, so an environment variable still
+wins — `POSTGRES_PORT=5432 ./gradlew bootRun` goes back to the default port. Run a different set of
+profiles with `./gradlew bootRun -Pprofiles=local,something`.
 
 The `api-cp-*` artefact resolves from the HMCTS Azure Artifacts feed. To build against an unreleased
 spec, publish it locally first:
