@@ -140,3 +140,9 @@ answers 400 naming the offending field. Recordings serve nothing until published
 - Remaining CNP onboarding steps are in `CNP-ONBOARDING-PLAN.md`. The two that block the recording
   pipeline are the Postgres Terraform module and the admin Entra app registration; until the latter
   exists, run with `ADMIN_DISABLED=true`.
+- **There are two Terraform directories and they must not be merged.** `infrastructure/` is the
+  CNP one, run by Jenkins, holding the key vault, Postgres and the demo signing key.
+  `apim/` registers the public contract with the SPS APIM instance and is run by GitHub Actions
+  (`.github/workflows/terraform-apim.yaml`) against a different subscription and a different state
+  backend. Putting APIM resources in `infrastructure/` makes every Jenkins apply try to create them
+  with variables it has never heard of. See `apim/README.md`.

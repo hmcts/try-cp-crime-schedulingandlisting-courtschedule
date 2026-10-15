@@ -1,0 +1,44 @@
+<!--
+  Deliberately NO validate-jwt, which is where this diverges from
+  api-cp-crime-schedulingandlisting-courtschedule's policy of the same name.
+
+  That policy validates a corporate Entra token against login.microsoftonline.com and rejects any
+  request without an Authorization header. Both halves would be wrong here:
+
+  1. This sandbox issues its OWN tokens, from POST /oauth2/v2.0/token, signed with a key held in
+     its key vault and verified in-process by the EntraTokenValidator copied byte-for-byte from the
+     live service. Microsoft has never heard of them, so validate-jwt would reject every one. The
+     whole point of the sandbox is that a consumer meets the real validator's behaviour - including
+     its 401s and its 403 insufficient_scope - so moving that enforcement to the edge would delete
+     the thing being demonstrated.
+
+  2. Every path in try-it-now-public.openapi.yml is unauthenticated by design. GET /scenarios is
+     where the demo credentials come from, so it has to be readable before a consumer holds
+     anything; the same goes for the token endpoint and JWKS. Returning 401 on a missing header
+     would make the sandbox impossible to start using.
+
+  What is left is throughput protection, which matters more here than on an internal API: this is a
+  public surface with published credentials. The counter falls back to the caller's IP, since an
+  API with subscription_required = false has no subscription key to count against.
+
+  /admin/** is absent from the public contract and is not registered in APIM at all - it is guarded
+  by AdminAuthFilter and a real corporate Entra token. See contracts/README.md.
+-->
+<policies>
+    <inbound>
+        <rate-limit-by-key calls="30" renewal-period="60" counter-key="@((context.Subscription?.Key ?? context.Request.IpAddress) + &quot;:try-slc&quot;)" />
+        <quota-by-key calls="500" renewal-period="86400" counter-key="@((context.Subscription?.Key ?? context.Request.IpAddress) + &quot;:try-slc&quot;)" />
+        <base />
+    </inbound>
+    <backend>
+        <limit-concurrency key="@((context.Subscription?.Key ?? context.Request.IpAddress) + &quot;:try-slc&quot;)" max-count="10">
+            <forward-request />
+        </limit-concurrency>
+    </backend>
+    <outbound>
+        <base />
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>

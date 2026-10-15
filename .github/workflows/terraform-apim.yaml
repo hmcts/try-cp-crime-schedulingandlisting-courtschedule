@@ -1,0 +1,202 @@
+# Registers this sandbox's public API with the HMCTS Shared Platform Services APIM.
+#
+# Modelled on api-cp-crime-schedulingandlisting-courtschedule's Infrastructure workflow. Two
+# deliberate differences:
+#
+#   * it works in apim/, not infrastructure/. infrastructure/ belongs to the CNP Jenkins pipeline,
+#     which runs its own terraform there for the key vault and Postgres. One directory cannot hold
+#     two configurations with two backends and two variable sets.
+#   * it watches master, this repo's default branch.
+name: APIM
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - "apim/**"
+      - "contracts/try-it-now-public.openapi.yml"
+      - ".github/workflows/terraform-apim.yaml"
+  pull_request:
+    branches:
+      - master
+    paths:
+      - "apim/**"
+      - "contracts/try-it-now-public.openapi.yml"
+      - ".github/workflows/terraform-apim.yaml"
+  workflow_dispatch:
+    inputs:
+      overrideAction:
+        description: "Run plan or apply"
+        required: true
+        default: plan
+        type: choice
+        options:
+          - plan
+          - apply
+
+concurrency:
+  group: terraform-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  precheck:
+    name: Terraform Precheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Terraform format check
+        uses: hmcts/cnp-githubactions-library/terraform-fmt@main
+        with:
+          working-directory: apim
+          recursive: true
+
+  discover-environments:
+    name: Discover tfvars environments
+    needs: precheck
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      has_envs: ${{ steps.matrix.outputs.has_envs }}
+      apply_aat: ${{ steps.matrix.outputs.apply_aat }}
+      apply_prod: ${{ steps.matrix.outputs.apply_prod }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Build deployment matrix from tfvars files
+        id: matrix
+        shell: bash
+        env:
+          # Apply runs on push to master, or a manual "apply" on master. Everything else is plan-only.
+          IS_APPLY: ${{ github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event.inputs.overrideAction == 'apply') }}
+          # Environments that need a reviewer's approval before apply (see the gated jobs below).
+          GATED_ENVS: "aat prod"
+        run: |
+          set -euo pipefail
+
+          matrix='[]'
+          found="false"
+          apply_aat="false"
+          apply_prod="false"
+
+          for file in apim/*.tfvars; do
+            if [ ! -f "$file" ]; then
+              continue
+            fi
+
+            env_name="${file%.tfvars}"
+            env_name="${env_name#apim/}"
+            env_upper="$(echo "$env_name" | tr '[:lower:]-' '[:upper:]_')"
+
+            # On apply, gated environments are deployed by their own approval-gated jobs.
+            if [ "$IS_APPLY" = "true" ] && [[ " $GATED_ENVS " == *" $env_name "* ]]; then
+              case "$env_name" in
+                aat) apply_aat="true" ;;
+                prod) apply_prod="true" ;;
+              esac
+              continue
+            fi
+
+            if [ "$env_name" = "prod" ]; then
+              storage_var="TFSTATE_STORAGE_ACCOUNT_PROD"
+            else
+              storage_var="TFSTATE_STORAGE_ACCOUNT_NONPROD"
+            fi
+
+            item="$(jq -nc \
+              --arg environment "$env_name" \
+              --arg subscription_var "AZURE_SUBSCRIPTION_${env_upper}" \
+              --arg storage_account_var "$storage_var" \
+              --arg azure_client_id_var "AZURE_CLIENT_ID_${env_upper}" \
+              --arg azure_subscription_id_var "AZURE_SUBSCRIPTION_ID_${env_upper}" \
+              '{
+                environment: $environment,
+                subscription_var: $subscription_var,
+                storage_account_var: $storage_account_var,
+                azure_client_id_var: $azure_client_id_var,
+                azure_subscription_id_var: $azure_subscription_id_var
+              }')"
+
+            matrix="$(jq -nc --argjson m "$matrix" --argjson i "$item" '$m + [$i]')"
+            found="true"
+          done
+
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "has_envs=$found" >> "$GITHUB_OUTPUT"
+          echo "apply_aat=$apply_aat" >> "$GITHUB_OUTPUT"
+          echo "apply_prod=$apply_prod" >> "$GITHUB_OUTPUT"
+
+  terraform:
+    name: Terraform ${{ matrix.environment }}
+    needs: [ discover-environments ]
+    if: ${{ needs['discover-environments'].outputs.has_envs == 'true' && (
+      github.event_name != 'workflow_dispatch' ||
+      github.event.inputs.overrideAction == 'plan' || github.ref ==
+      'refs/heads/master' ) }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs['discover-environments'].outputs.matrix) }}
+
+    uses: hmcts/cnp-githubactions-library/.github/workflows/terraform-deploy-openId.yaml@main
+    with:
+      environment: ${{ matrix.environment }}
+      subscription: ${{ vars[matrix.subscription_var] }}
+      aks-subscription: ${{ vars[matrix.subscription_var] }}
+      storage-account: ${{ vars[matrix.storage_account_var] }}
+      azure-client-id: ${{ vars[matrix.azure_client_id_var] }}
+      azure-subscription-id: ${{ vars[matrix.azure_subscription_id_var] }}
+      state-store-resource-group: rg-sps-platform-${{ matrix.environment }}
+      state-store-account-name: spsapimapi${{matrix.environment}}state
+      state-store-container-name: terraform-state
+      state-store-use-entra-id-auth: true
+      working-directory: apim
+      plan-only: ${{ github.event_name == 'pull_request' || (github.event_name ==
+        'workflow_dispatch' && github.event.inputs.overrideAction == 'plan') }}
+      product: amp
+      post-plan-to-pr: true
+
+  # ── Approval-gated applies ─────────────────────────────────────────────────
+  # Skipped entirely until aat.tfvars exists. The approval lives in its own job: a job calling a
+  # reusable workflow cannot set `environment:`, and running the Azure login inside a GitHub
+  # environment would change the OIDC subject to `environment:<name>`, which the DTS AMp federated
+  # credentials do not trust. Reviewers are configured on the `aat` GitHub environment.
+  #
+  # There is no prod counterpart on purpose: demo is the last environment for this service and
+  # there must never be a production deployment of it. See CLAUDE.md.
+  approve-aat:
+    name: Approve aat apply
+    needs: [ discover-environments ]
+    if: ${{ needs['discover-environments'].outputs.apply_aat == 'true' }}
+    runs-on: ubuntu-latest
+    environment: aat
+    steps:
+      - run: echo "aat apply approved by ${{ github.actor }}"
+
+  terraform-aat:
+    name: Terraform aat
+    needs: [ approve-aat ]
+    uses: hmcts/cnp-githubactions-library/.github/workflows/terraform-deploy-openId.yaml@main
+    with:
+      environment: aat
+      subscription: ${{ vars.AZURE_SUBSCRIPTION_AAT }}
+      aks-subscription: ${{ vars.AZURE_SUBSCRIPTION_AAT }}
+      storage-account: ${{ vars.TFSTATE_STORAGE_ACCOUNT_NONPROD }}
+      azure-client-id: ${{ vars.AZURE_CLIENT_ID_AAT }}
+      azure-subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID_AAT }}
+      state-store-resource-group: rg-sps-platform-aat
+      state-store-account-name: spsapimapiaatstate
+      state-store-container-name: terraform-state
+      state-store-use-entra-id-auth: true
+      working-directory: apim
+      plan-only: false
+      product: amp
+      post-plan-to-pr: true
