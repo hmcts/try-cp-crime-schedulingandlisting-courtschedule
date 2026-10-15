@@ -25,18 +25,6 @@ public class AuthorizationPolicy {
     public static final String ROLE_READ = "app.read";
 
     /**
-     * Everything under here is guarded by {@link uk.gov.hmcts.cp.filters.AdminAuthFilter}, which
-     * runs at a lower order and has already accepted or rejected the request by the time the demo
-     * filter consults this policy.
-     *
-     * <p><b>This prefix is not public.</b> It is the one case where
-     * {@link #isExemptFromValidation(String)} returning true does not mean "no token required" — it
-     * means "a different, stricter realm has already handled it". Removing the admin filter without
-     * removing this would leave ingest and publish wide open.
-     */
-    public static final String ADMIN_PREFIX = "/admin";
-
-    /**
      * The actuator health endpoint and everything under it.
      *
      * <p>This is the one place the "enumerate, never infer" rule above is relaxed, and deliberately.
@@ -96,16 +84,11 @@ public class AuthorizationPolicy {
                 : List.of(stripTrailingSlash(actuatorBasePath));
     }
 
-    /**
-     * True when this filter chain's demo realm should not validate the request — either because the
-     * path is genuinely public, or because the admin realm owns it. See {@link #ADMIN_PREFIX} for
-     * why those two cases share one method.
-     */
+    /** True when the demo realm should not validate the request: the path is public. */
     public boolean isExemptFromValidation(final String requestUri) {
         final String path = stripTrailingSlash(requestUri);
         return PUBLIC_EXACT_PATHS.contains(path)
                 || isHealthPath(path)
-                || isAdminPath(requestUri)
                 || publicPathRoots.stream().anyMatch(root -> path.equals(root) || path.startsWith(root + "/"));
     }
 
@@ -134,12 +117,6 @@ public class AuthorizationPolicy {
             return false;
         }
         return HEALTH_GROUP.matcher(path.substring(HEALTH_PREFIX.length() + 1)).matches();
-    }
-
-    /** True for anything the admin realm guards. Static so the admin filter can ask without a bean. */
-    public static boolean isAdminPath(final String requestUri) {
-        final String path = stripTrailingSlash(requestUri);
-        return ADMIN_PREFIX.equals(path) || path.startsWith(ADMIN_PREFIX + "/");
     }
 
     /** The roles this API recognises; a caller needs at least one of them. */

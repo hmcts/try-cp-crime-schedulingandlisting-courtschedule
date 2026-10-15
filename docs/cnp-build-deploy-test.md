@@ -264,7 +264,7 @@ Postgres first, then the app:
 docker run -d --name tin-pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=tryitnow \
   -p 55432:5432 postgres:16-alpine
 
-POSTGRES_PORT=55432 ADMIN_DISABLED=true ./gradlew bootRun
+POSTGRES_PORT=55432 ./gradlew bootRun
 curl localhost:8080/scenarios
 curl localhost:8080/health
 curl localhost:8080/health/liveness
@@ -903,7 +903,7 @@ docker run -d --name tin-pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=tryitno
   -p 55432:5432 postgres:16-alpine
 
 POSTGRES_PORT=55432 ./gradlew build
-POSTGRES_PORT=55432 ADMIN_DISABLED=true ./gradlew bootRun
+POSTGRES_PORT=55432 ./gradlew bootRun
 ```
 
 Then, in another shell, the smoke suite against your own process — the suites default to

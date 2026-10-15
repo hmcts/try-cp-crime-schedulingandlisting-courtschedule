@@ -20,7 +20,6 @@ It holds no Common Platform data, has no route to a CP backend, and is not inten
 | | |
 |---|---|
 | [docs/consumer-flow.md](docs/consumer-flow.md) | Calling the sandbox: scenarios, tokens, credentials, how the auth works |
-| [docs/admin-flow.md](docs/admin-flow.md) | The recording pipeline: capture, ingest, review, publish |
 | [docs/contract-defects.md](docs/contract-defects.md) | Defects in the published contract that this work surfaced |
 | [docs/cnp-build-deploy-test.md](docs/cnp-build-deploy-test.md) | Building, deploying and testing a service on CNP |
 | [CNP-ONBOARDING-PLAN.md](CNP-ONBOARDING-PLAN.md) | Onboarding status for this service |
@@ -32,25 +31,18 @@ It holds no Common Platform data, has no route to a CP backend, and is not inten
 flowchart LR
   CONS(["Consumer evaluating the API"])
 
-  subgraph LOWER["NON-LIVE CP environment - SIT / dev devamp01 / STE"]
-    CAP(["Tester or CI<br/>amp-bruno-collection"])
-    SVC["service-cp-crime-scheduleandlist-<br/>courtschedule"]
-    CPB[("CP backend<br/>ste-ccm-64 - synthetic data")]
-    CAP -- "1. GET /case/{urn}/courtschedule" --> SVC
-    SVC --> CPB
-  end
-
   subgraph CNP["CNP - namespace amp - DEMO, the last environment"]
     TIN["try-cp-crime-<br/>schedulingandlisting-courtschedule<br/>Spring Boot"]
-    STUB[("Postgres<br/>recordings + seeded fixtures")]
+    STUB[("Postgres<br/>seeded from the committed fixtures")]
     TIN --> STUB
   end
 
+  FIX["src/main/resources/stubs<br/>committed fixtures"]
   CONTRACT["api-cp-crime-schedulingandlisting-<br/>courtschedule (pinned jar)"]
 
+  FIX == "seeded at boot" ==> TIN
   CONTRACT -. "generated CourtScheduleApi + models" .-> TIN
-  CAP == "2. POST /admin/recordings<br/>real Entra token" ==> TIN
-  CONS -- "3. token, then GET /case/{urn}/courtschedule" --> TIN
+  CONS -- "token, then GET /case/{urn}/courtschedule" --> TIN
 
   LIVE["LIVE CP estate"]
   PRODX["CNP PRODUCTION"]
@@ -58,18 +50,20 @@ flowchart LR
   TIN -. "never deployed" .-x PRODX
 ```
 
-**Read the arrows by direction.** The thick arrow is the only thing that crosses into CNP, and it is
-*inbound*: the capture runs in the non-live CP environment and pushes the response into demo over the
-admin API. This service makes no outbound call to anything — it validates tokens against a key it
-holds in memory and answers from its own store. That is what lets it live in CNP with no CP
-connectivity and no route to the live estate, at capture time or at serve time.
+**Nothing writes to it but itself.** There is no upload path: the examples are the fixtures
+committed under `src/main/resources/stubs/`, validated against the published contract at build time
+and seeded into Postgres at boot. Changing what a consumer sees means changing the repository.
 
-**It is not a network path.** There is no CP-to-CNP peering, and `cnp-cp-integration` is an empty
-repo. What crosses is an authenticated HTTPS client running in the CP environment calling a demo
-host. The admin realm's Entra token is the whole of the control; the network provides none.
+The database is there because it is the store the service was built around, and because a write
+path is expected to come back — see [#37](https://github.com/hmcts/try-cp-crime-schedulingandlisting-courtschedule/pull/37).
+Today it holds exactly what the repository holds.
 
-A consequence worth stating plainly: **the demo sandbox holds data captured from a non-live CP
-environment, and nothing else.** If a case URN appears here, it came from SIT, dev or STE.
+**It makes no outbound call to anything.** It validates tokens against a key it holds in memory and
+answers from its own store, which is what lets it live in CNP with no CP connectivity and no route
+to the live estate. There is no CP-to-CNP peering, and `cnp-cp-integration` is an empty repo.
+
+A consequence worth stating plainly: **everything this sandbox serves is in the repository.** If a
+case URN appears here, it was written into `stubs/scenarios.yaml` and reviewed in a pull request.
 
 ## Quick start
 
@@ -126,8 +120,6 @@ vault, mounted by Flux.
 | `POSTGRES_DATABASE` | `tryitnow` | |
 | `POSTGRES_USER` | `postgres` | |
 | `POSTGRES_PASS` | `postgres` | |
-| `ADMIN_DISABLED` | `false` | **Set this true locally.** The admin realm verifies against a real corporate Entra tenant and refuses to start half-configured; true makes `/admin/**` answer 503 rather than leaving it unguarded |
-| `ADMIN_TENANT_ID`, `ADMIN_AUDIENCE`, `ADMIN_ISSUER`, `ADMIN_JWKS_URI` | empty | Only needed with `ADMIN_DISABLED=false`, to work on the recording pipeline itself |
 | `DEMO_SIGNING_KEY_JWK` | empty | Unset, an ephemeral key is generated and a warning logged — correct locally. Generate your own if you need one stable across restarts; never copy a deployed environment's |
 | `RECORDING_SEED_FIXTURES` | `true` | false shows how a genuinely empty environment behaves |
 | `SERVER_PORT` | `8080` | |
@@ -195,5 +187,6 @@ That is a gap, not a design decision, and it blocks the thing demo exists for:
   [CNP-ONBOARDING-PLAN.md](CNP-ONBOARDING-PLAN.md), because it is a real operational consequence
   rather than a detail.
 
-When demo does become public, `/admin/**` must be restricted at the edge, separately from the read
-API. The ingest endpoint writes data that is one approval away from being internet-readable.
+There is no write surface to protect at the edge today. If one comes back, it must be restricted
+there separately from the public read API — an ingest endpoint writes data that is one approval
+away from being internet-readable.
