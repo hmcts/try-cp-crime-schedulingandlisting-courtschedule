@@ -29,3 +29,11 @@ applicationinsights-agent-*.jar
 *.tfstate
 *.tfstate.*
 .terraform.lock.hcl
+
+### Local environment ###
+# .env holds whatever you actually run with and must never be committed; .envrc is the one-line
+# direnv stanza that loads it. The committed template is .env.example.
+.env
+.env.*
+!.env.example
+.envrc
