@@ -202,7 +202,7 @@ dependencies {
   implementation 'io.micrometer:micrometer-registry-prometheus'
 
   // Encodes caller-supplied values before they reach log lines, preventing log injection
-  implementation 'org.owasp.encoder:encoder:1.4.0'
+  implementation 'org.owasp.encoder:encoder:1.5.0'
 
   implementation group: 'com.github.hmcts.java-logging', name: 'logging', version: '8.0.0'
 
