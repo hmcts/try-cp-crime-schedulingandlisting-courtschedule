@@ -59,14 +59,18 @@ class FixtureLoaderTest {
     @Test
     @DisplayName("a body carrying an undeclared field is rejected, naming the field")
     void undeclaredFieldIsRejected() {
-        // The live service returns courtHouse and lastUpdatedTime on a hearing; the Hearing schema
-        // declares neither. This is the check that will reject the first real recording - correctly.
+        // The live service returns courtHouse and lastUpdatedTime on a hearing (AMS handover pack
+        // §5.1). api-cp-* 1.1.2 added lastUpdatedTime to the Hearing schema; courtHouse is still
+        // declared only on CourtSitting and HearingWeekCommencing, never on Hearing itself. So this
+        // is still the check that will reject the first real recording - correctly. If a later
+        // contract version adds courtHouse to Hearing, this test goes green for the wrong reason:
+        // pick another field the schema does not declare rather than deleting the test.
         final String withUndeclaredField = """
-                {"courtSchedule":[{"hearings":[{"hearingId":"HRG-1","lastUpdatedTime":"2026-07-09T09:00:00Z"}]}]}""";
+                {"courtSchedule":[{"hearings":[{"hearingId":"HRG-1","courtHouse":"CH-1"}]}]}""";
 
         assertThatThrownBy(() -> contractValidator.validate(200, withUndeclaredField))
                 .isInstanceOf(ContractViolationException.class)
-                .hasMessageContaining("lastUpdatedTime");
+                .hasMessageContaining("courtHouse");
     }
 
     @Test
