@@ -4,8 +4,8 @@ How someone evaluating the Scheduling and Listing Court Schedule API uses this s
 scenarios, get a token, call the API. Everything here is unauthenticated to discover and
 authenticated to call, and all of it is public by design.
 
-The write side — how examples get into the sandbox in the first place — is a separate journey with a
-separate auth realm. See [admin-flow.md](admin-flow.md).
+There is no write side today. What the sandbox serves is the set of fixtures committed under
+`src/main/resources/stubs/`, seeded into its store at boot; changing it means a pull request.
 
 ## The journey
 

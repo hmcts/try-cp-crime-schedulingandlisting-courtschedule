@@ -2,8 +2,8 @@
 
 All of these are in
 [`api-cp-crime-schedulingandlisting-courtschedule`](https://github.com/hmcts/api-cp-crime-schedulingandlisting-courtschedule)
-and worth fixing there. Under the recording design they stop being documentation issues and start
-blocking ingest — see [admin-flow.md](admin-flow.md).
+and worth fixing there. They are not academic: each is a place where the published contract and the
+service it describes disagree, and a consumer reading the spec would be misled.
 
 This repo pins **1.1.2**.
 
@@ -26,13 +26,12 @@ difference between 1.1.0 and 1.1.2; every other model is byte-for-byte the same.
 
 **`courtHouse` on a hearing — still open.** `courtHouse` is declared on `CourtSitting` and on
 `HearingWeekCommencing`, never on `Hearing` itself. The fixtures here carry it at the sitting level,
-where the schema puts it, which is why they validate. A real recording that carries it at the hearing
-level, as the handover pack describes, is still rejected at ingest.
+where the schema puts it, which is why they validate. A response from the live service carrying it at
+the hearing level, as the handover pack describes, would not fit the published schema.
 
-That is what `FixtureLoaderTest.undeclaredFieldIsRejected` and
-`RecordingJourneyTest.contractViolationIsRejectedAtIngest` now probe with. If a later contract version
-declares `courtHouse` on `Hearing` too, those tests go green for the wrong reason — pick another
-undeclared field rather than deleting them.
+That is what `FixtureLoaderTest.undeclaredFieldIsRejected` probes with. If a later contract version
+declares `courtHouse` on `Hearing` too, that test goes green for the wrong reason — pick another
+undeclared field rather than deleting it.
 
 ## 3. `listNote` can never be returned as null
 
