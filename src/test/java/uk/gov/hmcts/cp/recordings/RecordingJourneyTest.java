@@ -137,8 +137,10 @@ class RecordingJourneyTest {
     @Test
     @DisplayName("a body that does not match the contract is rejected, naming the field")
     void contractViolationIsRejectedAtIngest() throws Exception {
+        // courtHouse is declared on CourtSitting and HearingWeekCommencing, never on Hearing - so at
+        // the hearing level it is undeclared. See the note in FixtureLoaderTest before changing it.
         final String undeclared = """
-                {"courtSchedule":[{"hearings":[{"hearingId":"H","lastUpdatedTime":"2026-07-09T09:00:00Z"}]}]}""";
+                {"courtSchedule":[{"hearings":[{"hearingId":"H","courtHouse":"CH-1"}]}]}""";
 
         mvc().perform(post("/admin/recordings")
                         .header("Authorization", AdminTokens.bearerFor(List.of(AdminTokens.WRITE_ROLE)))
@@ -146,7 +148,7 @@ class RecordingJourneyTest {
                         .content(ingestPayload("TIN-BAD-01", undeclared)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("contract_violation"))
-                .andExpect(jsonPath("$.message").value(containsString("lastUpdatedTime")));
+                .andExpect(jsonPath("$.message").value(containsString("courtHouse")));
     }
 
     @Test

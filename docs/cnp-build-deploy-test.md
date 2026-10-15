@@ -275,7 +275,7 @@ curl localhost:8080/health/liveness
 server, and the app fails with `role "postgres" does not exist`. The error names a role, so it reads
 like a permissions problem rather than a wrong-server problem, which is what makes it expensive.
 `application.yaml:26` reads `${POSTGRES_PORT:5432}`, so the override is a single environment
-variable. (`../README.md:369-370` still shows `-p 5432:5432`; prefer the form above.)
+variable. The README's Local development section publishes the container on 55432 for this reason.
 
 `ADMIN_DISABLED=true` is needed locally because the admin realm validates against a real corporate
 Entra tenant and deliberately refuses to start half-configured.
@@ -465,9 +465,8 @@ if (isOnMaster || !enableHelmLabel) {
   `enable_keep_helm` to the PR.
 
 If you want to poke at a preview deployment by hand, add that label before the build you intend to
-inspect. (`../README.md:414` says preview environments are "destroyed nightly". What the library
-does is uninstall at the end of each build unless `enable_keep_helm` is set; whether a separate
-cluster-side nightly sweep of kept releases also exists is **unverified**.)
+inspect. Whether a separate cluster-side nightly sweep of kept releases also exists is
+**unverified**; what the library itself does is uninstall at the end of each build.
 
 ### The functional-test stage will uninstall your release
 
@@ -861,8 +860,8 @@ The pattern is `<release>.<env>.platform.hmcts.net`. Note the environment segmen
 
 ### The `*.internal` names are stale
 
-`charts/amp-try-slc/values.yaml` and the deployment table at `../README.md:411-416` both give
-`amp-try-slc-{env}.service.core-compute-{env}.internal`. **Do not rely on these.** The pipeline
+`charts/amp-try-slc/values.yaml:7` still gives
+`amp-try-slc-{env}.service.core-compute-{env}.internal`. **Do not rely on it.** The pipeline
 computes `*.platform.hmcts.net` from `private-dns-config.yml`, Flux sets `*.platform.hmcts.net`
 explicitly, and the library itself raises a deprecation warning when a resolved FQDN ends in
 `.internal` (`helmInstall.groovy:35-37`). The base-values host survives only where neither a
