@@ -4,9 +4,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import org.springframework.web.servlet.resource.NoResourceFoundException;
 import uk.gov.hmcts.cp.auth.TokenValidationException;
 import uk.gov.hmcts.cp.openapi.model.ErrorResponse;
+import uk.gov.hmcts.cp.recordings.RecordingNotFoundException;
 import uk.gov.hmcts.cp.scenarios.ContractViolationException;
 import uk.gov.hmcts.cp.scenarios.ScenarioFailureException;
 import uk.gov.hmcts.cp.services.ErrorResponseFactory;
@@ -37,33 +37,25 @@ public class GlobalExceptionHandler {
     /**
      * A capture that does not fit the published contract.
      *
-     * <p>Defensive only. Fixtures are checked at build time and again when they are seeded, so a
-     * request should not reach this. If it does, the message names the offending field.
+     * <p>The message is returned to the caller because it names the offending field, and the caller
+     * is the one holding the payload being described. A rejection that only said "invalid" would
+     * leave whoever ran the capture with nowhere to start.
      */
     @ExceptionHandler(ContractViolationException.class)
     public ResponseEntity<ErrorResponse> handleContractViolation(final ContractViolationException ex) {
-        log.error("A fixture does not match the contract and reached a request: {}", ex.getMessage());
+        log.info("Rejected a recording that does not match the contract: {}", ex.getMessage());
         return ResponseEntity.badRequest().body(
                 errorResponseFactory.create("contract_violation", ex.getMessage()));
     }
 
-    /**
-     * A path this service does not serve.
-     *
-     * <p>Handled explicitly because the catch-all below would otherwise turn it into a 500: Spring
-     * raises {@link NoResourceFoundException} for an unmapped path, and a {@code @RestControllerAdvice}
-     * that handles {@code Exception} intercepts it before the default 404 is produced. A consumer
-     * who mistypes a URL should be told the path does not exist, not that the sandbox is broken.
-     */
-    @ExceptionHandler(NoResourceFoundException.class)
-    public ResponseEntity<ErrorResponse> handleNoResource(final NoResourceFoundException ex) {
-        return ResponseEntity.status(404).body(
-                errorResponseFactory.create("not_found", "No such path: " + ex.getResourcePath()));
+    @ExceptionHandler(RecordingNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleRecordingNotFound(final RecordingNotFoundException ex) {
+        return ResponseEntity.status(404).body(errorResponseFactory.create("not_found", ex.getMessage()));
     }
 
     /**
-     * A caller whose token was valid but who lacks the role for this operation - thrown by
-     * {@code AuthorizationPolicy} once the token itself has verified.
+     * An admin caller whose token was valid but who lacks the role for this operation. Thrown from
+     * the controller rather than the filter, because the required role differs per operation.
      */
     @ExceptionHandler(TokenValidationException.class)
     public ResponseEntity<ErrorResponse> handleTokenValidation(final TokenValidationException ex) {

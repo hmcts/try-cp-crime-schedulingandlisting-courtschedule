@@ -255,14 +255,15 @@ bootJar {
 // uk.gov.hmcts.cp.openapi.{api,model}, and the SLC contract jar is already on this classpath - a
 // second generator writing into the same package would collide with it. tryitnow.openapi keeps
 // them apart.
-// Kept as a map of one rather than inlined: a second surface has existed here before and will
-// again. The generator emits a helper class (ApiUtil) into whichever api package it is given, so
-// two specs sharing one package produce a duplicate class - and it fails confusingly, because
-// javac aborts annotation processing on the duplicate and Lombok's generated members then look
-// missing everywhere else. Give the next spec its own package and the rest follows.
+// The two specs also generate into packages distinct from EACH OTHER. The generator emits a
+// helper class (ApiUtil) into whichever api package it is given, so pointing both at one package
+// produces a duplicate class and the build fails - and it fails confusingly, because javac aborts
+// annotation processing on a duplicate and Lombok's generated members then look missing everywhere
+// else. The split also says which surface is which.
 
 def contractSpecs = [
   tryItNowPublic: ['try-it-now-public.openapi.yml', 'uk.gov.hmcts.cp.tryitnow.openapi'],
+  tryItNowAdmin : ['try-it-now-admin.openapi.yml', 'uk.gov.hmcts.cp.tryitnow.admin.openapi'],
 ]
 
 contractSpecs.each { taskSuffix, spec ->
