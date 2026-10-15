@@ -29,3 +29,12 @@ applicationinsights-agent-*.jar
 *.tfstate
 *.tfstate.*
 .terraform.lock.hcl
+
+### Local environment ###
+# Not how this repo configures local runs - that is the `local` Spring profile in
+# src/main/resources/application-local.yaml. Ignored anyway so that a .env someone creates out of
+# habit, or that a tool drops in, cannot be committed with a real credential in it.
+# A template named exactly .env.example stays committable.
+.env
+.env.*
+!.env.example
