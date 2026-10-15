@@ -32,8 +32,9 @@ Two directories, two states, two pipelines. `apim/` is driven only by
 
 The OpenAPI spec is the source of truth: display name, operations and schemas all come from it.
 
-`try-it-now-public.openapi.yml` is the only contract this service has. A write surface is expected
-to come back; when it does it must **not** be registered here. See `contracts/README.md`.
+`try-it-now-admin.openapi.yml` is **not** registered, and must not be. It writes data that ends up
+on a public endpoint, and is guarded by `AdminAuthFilter` and a real corporate Entra token. See
+`contracts/README.md`.
 
 ## Three differences from the api-cp version
 
