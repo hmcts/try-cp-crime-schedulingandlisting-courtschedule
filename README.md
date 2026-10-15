@@ -99,16 +99,39 @@ curl localhost:8080/scenarios
 `./gradlew build` needs Docker running — the store and the full ingest/publish journey are tested
 against a real Postgres via TestContainers, not an in-memory substitute.
 
-`bootRun` runs under the **`local` Spring profile**, so the overrides live in
+### Configuration
+
+`bootRun` runs under the **`local` Spring profile**, so the defaults live in
 [`src/main/resources/application-local.yaml`](src/main/resources/application-local.yaml) rather than
 in the command line. It points the datasource at 55432 and turns the admin realm off — that realm
 verifies against a real Entra tenant and refuses to start without one, so locally `/admin/**`
-answers 503 rather than being left unguarded.
+answers 503 rather than being left unguarded. Nothing else activates the profile: not the test
+tasks, not the `Dockerfile`, not the Helm chart.
 
-Nothing else activates the profile: not the test tasks, not the Dockerfile, not the Helm chart. Each
-entry keeps the `${ENV_VAR:default}` form from `application.yaml`, so an environment variable still
-wins — `POSTGRES_PORT=5432 ./gradlew bootRun` goes back to the default port. Run a different set of
-profiles with `./gradlew bootRun -Pprofiles=local,something`.
+For anything you want to differ from everyone else's, there is a **`.env`**, the same convention the
+JavaScript projects here use:
+
+```bash
+cp .env.example .env     # then edit it
+./gradlew bootRun
+```
+
+[`.env.example`](.env.example) is committed and documents every variable worth setting. `.env` is
+gitignored and must never hold a real credential — deployed environments take their secrets from the
+`amp-try-slc-{env}` key vault, mounted by Flux.
+
+You do not need one. A clean checkout runs with nothing set up, because the import is optional.
+
+No dotenv library is involved: `application-local.yaml` imports the file with
+`spring.config.import: "optional:file:.env[.properties]"`, and Spring reads `KEY=VALUE` natively —
+comments and blank lines included. Precedence runs lowest to highest:
+
+```
+application.yaml  <  application-local.yaml  <  .env  <  a real environment variable
+```
+
+So `POSTGRES_PORT=5432 ./gradlew bootRun` still beats both files. Run a different set of profiles
+with `./gradlew bootRun -Pprofiles=local,something`.
 
 The `api-cp-*` artefact resolves from the HMCTS Azure Artifacts feed. To build against an unreleased
 spec, publish it locally first:

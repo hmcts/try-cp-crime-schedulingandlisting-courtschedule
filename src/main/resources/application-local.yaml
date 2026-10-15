@@ -9,6 +9,15 @@
 # still wins over the value below. Only the fallback changes.
 
 spring:
+  config:
+    # Load .env if there is one, the way the JavaScript projects in this estate do - same file name,
+    # same KEY=VALUE format, same "gitignored, copy from .env.example" convention. `optional:` means
+    # no file is not an error, so a clean checkout still runs with nothing to set up.
+    #
+    # Spring parses it as a properties file, which is what a .env already is. Values in it override
+    # the defaults below, because every default here is written as ${ENV_VAR:fallback} and an
+    # imported property resolves that placeholder. A real environment variable still beats both.
+    import: "optional:file:.env[.properties]"
   datasource:
     # Port 55432, not 5432, on purpose. A natively installed Postgres listening on 127.0.0.1:5432
     # shadows a Docker container published on the same port - the specific bind beats Docker's
