@@ -1,13 +1,11 @@
 package uk.gov.hmcts.cp.controllers;
 
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 import uk.gov.hmcts.cp.auth.AuthorizationPolicy;
 import uk.gov.hmcts.cp.auth.EntraAuthProperties;
 import uk.gov.hmcts.cp.config.AuthKeySourceProperties;
-import uk.gov.hmcts.cp.demo.DemoClientRegistry;
 import uk.gov.hmcts.cp.openapi.api.CourtScheduleApi;
 import uk.gov.hmcts.cp.scenarios.Scenario;
 import uk.gov.hmcts.cp.scenarios.ScenarioCatalog;
@@ -25,6 +23,13 @@ import java.util.Map;
  * <p>It also reports which token realm is live, under {@code authentication.mode}. That is the only
  * way a caller — or the functional test — can tell whether to fetch a token from this service or
  * from Entra, since the demo endpoints simply do not exist in the latter case.
+ *
+ * <p><b>It does not return the demo client credentials.</b> This response is read by consumers
+ * evaluating the live API, most of whom will be holding an Entra token from their own registration;
+ * a client id and secret in the payload invites them to use the wrong one. The credentials are in
+ * the service README, where someone looking for the demo journey will find them and nobody else
+ * trips over them. Removing them from here changes no behaviour — {@code DemoTokenController} still
+ * accepts them in the self-issued realm.
  */
 @RestController
 public class ScenarioController {
@@ -36,20 +41,12 @@ public class ScenarioController {
     private final AuthKeySourceProperties keySourceProperties;
     private final EntraAuthProperties authProperties;
 
-    /**
-     * {@code clientRegistry} is an {@link ObjectProvider} because the demo clients exist only in the
-     * self-issued realm. Publishing credentials that cannot work would be worse than publishing none.
-     */
-    private final ObjectProvider<DemoClientRegistry> clientRegistry;
-
     public ScenarioController(final ScenarioCatalog scenarioCatalog,
                               final AuthKeySourceProperties keySourceProperties,
-                              final EntraAuthProperties authProperties,
-                              final ObjectProvider<DemoClientRegistry> clientRegistry) {
+                              final EntraAuthProperties authProperties) {
         this.scenarioCatalog = scenarioCatalog;
         this.keySourceProperties = keySourceProperties;
         this.authProperties = authProperties;
-        this.clientRegistry = clientRegistry;
     }
 
     @GetMapping(value = AuthorizationPolicy.PATH_SCENARIOS, produces = MediaType.APPLICATION_JSON_VALUE)
@@ -60,13 +57,6 @@ public class ScenarioController {
                 + "and no real case data is present.");
         response.put("authentication", describeAuthentication());
         response.put("howToCall", describeHowToCall());
-        clientRegistry.ifAvailable(registry -> response.put("demoClients", registry.all().stream()
-                .map(client -> Map.of(
-                        "client_id", client.clientId().toString(),
-                        "client_secret", client.clientSecret(),
-                        "roles", client.roles(),
-                        "description", client.description()))
-                .toList()));
         response.put("scenarios", describeScenarios());
         return response;
     }
@@ -92,8 +82,9 @@ public class ScenarioController {
         if (keySourceProperties.isSelfIssued()) {
             return Map.of(
                     "1_getToken", "POST " + AuthorizationPolicy.PATH_TOKEN
-                            + " (application/x-www-form-urlencoded) with grant_type=client_credentials,"
-                            + " client_id and client_secret from demoClients below",
+                            + " (application/x-www-form-urlencoded) with grant_type=client_credentials"
+                            + " and the demo client_id and client_secret published in this service's"
+                            + " README",
                     "2_callApi", "GET " + CourtScheduleApi.PATH_GET_COURT_SCHEDULE_BY_CASE_URN
                             + " with header Authorization: Bearer <access_token>",
                     "note", "Tokens are issued and verified by this sandbox alone. They are not Entra "

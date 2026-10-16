@@ -86,18 +86,19 @@ class FunctionalTest {
     }
 
     @Test
-    @DisplayName("/scenarios publishes both demo clients, so a consumer can self-serve credentials")
-    void scenariosPublishesTheDemoCredentials() {
-        assumeSelfIssued();
-        final JsonNode demoClients = scenarios.get("demoClients");
+    @DisplayName("/scenarios publishes no credentials, in either realm")
+    void scenariosPublishesNoCredentials() {
+        assertThat(scenarios.get("demoClients"))
+                .describedAs("%s is read by consumers evaluating the live API, most of them holding an "
+                        + "Entra token from their own registration. A client id and secret in this "
+                        + "payload invites them to use the wrong one - the demo credentials belong in "
+                        + "the README", AuthorizationPolicy.PATH_SCENARIOS)
+                .isNull();
 
-        assertThat(demoClients).isNotNull();
-        assertThat(demoClients.isArray()).isTrue();
-        assertThat(demoClients.toString())
-                .describedAs("both the entitled and the role-less client must be advertised - the "
-                        + "second is how a consumer exercises its 403 handling")
-                .contains(DemoClientRegistry.READER_CLIENT_ID.toString())
-                .contains(DemoClientRegistry.NO_ROLE_CLIENT_ID.toString());
+        assertThat(scenarios.toString())
+                .describedAs("no demo client id may appear anywhere in the response")
+                .doesNotContain(DemoClientRegistry.READER_CLIENT_ID.toString())
+                .doesNotContain(DemoClientRegistry.NO_ROLE_CLIENT_ID.toString());
     }
 
     @Test
@@ -209,11 +210,6 @@ class FunctionalTest {
     @DisplayName("an Entra environment publishes no credentials and no token endpoint")
     void entraEnvironmentMintsNothing() throws IOException, InterruptedException {
         assumeTrue(!isSelfIssued(), "self-issued realm - the demo endpoints are meant to exist here");
-
-        assertThat(scenarios.get("demoClients"))
-                .describedAs("%s must not advertise demo credentials where tokens come from Entra - "
-                        + "they would be credentials that cannot work", AuthorizationPolicy.PATH_SCENARIOS)
-                .isNull();
 
         assertThat(scenarios.path("authentication").path("tokenEndpoint").asText())
                 .describedAs("the caller must be pointed at Entra, not at this service")

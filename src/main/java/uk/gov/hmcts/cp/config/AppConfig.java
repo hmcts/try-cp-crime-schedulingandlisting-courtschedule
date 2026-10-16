@@ -47,7 +47,7 @@ public class AppConfig {
      * network and no Entra, which is what lets it run anywhere.
      */
     @Bean
-    @ConditionalOnProperty(name = "auth.key-source", havingValue = "SELF_ISSUED")
+    @ConditionalOnProperty(name = "auth.key-source", havingValue = "SELF_ISSUED", matchIfMissing = true)
     public JWKSource<SecurityContext> selfIssuedJwkSource(final DemoSigningKey demoSigningKey) {
         log.info("Verifying tokens against the in-memory demo key set");
         return new ImmutableJWKSet<>(demoSigningKey.publicJwkSet());
@@ -66,7 +66,7 @@ public class AppConfig {
      * makes that ordering explicit rather than incidental.
      */
     @Bean
-    @ConditionalOnProperty(name = "auth.key-source", havingValue = "ENTRA", matchIfMissing = true)
+    @ConditionalOnProperty(name = "auth.key-source", havingValue = "ENTRA")
     public JWKSource<SecurityContext> entraJwkSource(final EntraAuthProperties authProperties,
                                                      final AuthKeySourceProperties keySourceProperties)
             throws MalformedURLException {

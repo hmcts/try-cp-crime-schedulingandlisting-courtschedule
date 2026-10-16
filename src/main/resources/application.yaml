@@ -56,7 +56,7 @@ azure:
 # accepting tokens this service minted itself. It needs THREE variables set - AUTH_TENANT_ID,
 # AUTH_AUDIENCE and AUTH_ISSUER. AuthKeySourceProperties refuses to start without them.
 auth:
-  key-source: ${AUTH_KEY_SOURCE:ENTRA}
+  key-source: ${AUTH_KEY_SOURCE:SELF_ISSUED}
   mode: ENFORCE
   # Defaulted to the self-issued identifiers below, so local development needs no configuration.
   # In ENTRA mode those defaults are rejected at startup; AUTH_AUDIENCE must be this API's bare

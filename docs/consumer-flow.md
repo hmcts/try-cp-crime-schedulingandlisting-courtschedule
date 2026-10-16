@@ -17,14 +17,14 @@ curl -s $BASE/scenarios | jq .authentication
 
 | `authentication.mode` | Where the token comes from | What exists |
 |---|---|---|
-| `self-issued` | `POST $BASE/oauth2/v2.0/token`, with the published demo credentials | token endpoint, `/.well-known/jwks.json`, `demoClients` in `/scenarios` |
+| `self-issued` | `POST $BASE/oauth2/v2.0/token`, with the demo credentials below | token endpoint, `/.well-known/jwks.json` |
 | `entra` | `POST https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token`, with **your own** app registration | none of the above — they are removed from the service, not merely refused |
 
 Validation is the same code either way.
 
-**Demo — the environment the public catalogue points at — runs `self-issued`**, so the walkthrough
-below is the one a consumer arriving from the catalogue follows. **Sandbox and AAT run `entra`**; see
-[the Entra realm](#the-entra-realm) for those.
+**Every environment except sandbox runs `self-issued`**, demo included — the one the public
+catalogue points at — so the walkthrough below is what a consumer arriving from the catalogue
+follows. **Sandbox runs `entra`**; see [the Entra realm](#the-entra-realm) for that one.
 
 ## The journey
 
@@ -56,12 +56,14 @@ sequenceDiagram
   end
 ```
 
-`GET /scenarios` is unauthenticated and self-documenting — it lists the credentials, the case URNs
-and what each one demonstrates. It is the entry point; nothing else needs to be known in advance.
+`GET /scenarios` is unauthenticated and self-documenting — the case URNs, what each one
+demonstrates, and which realm is live. It does **not** return the demo credentials: it is read by
+consumers evaluating the live API who will be holding an Entra token of their own, and a client id
+and secret in that payload invites them to use the wrong one. They are below, and in the README.
 
 ## Walkthrough — self-issued realm
 
-Demo and local development. Sandbox and AAT are `entra`; see below for those.
+Demo, local development, preview and AAT. Sandbox is `entra`; see below for that one.
 
 ```bash
 BASE=https://amp-try-slc.demo.platform.hmcts.net
@@ -99,7 +101,8 @@ into it.
 
 ## Demo credentials
 
-Both published deliberately; they authorise nothing beyond this sandbox.
+Both published deliberately; they authorise nothing beyond this sandbox. They live here and in the
+service README rather than in `GET /scenarios` — see above.
 
 | Client | `client_id` | Outcome |
 |---|---|---|
@@ -128,8 +131,9 @@ real API**: the `iss`, `aud` and `tid` are its own.
 
 ## The Entra realm
 
-**This is what sandbox and AAT run**, against `hmctsextsbox` — the tenant the Marketplace registers
-consumer applications in, so these are credentials a developer can actually obtain.
+**This is what sandbox runs**, against `hmctsextsbox` — the tenant the Marketplace registers
+consumer applications in, so these are credentials a developer can actually obtain. It is the only
+environment in this realm.
 
 ```bash
 BASE=https://amp-try-slc.sandbox.platform.hmcts.net
@@ -152,15 +156,20 @@ and an unencoded one is silently mangled into `AADSTS7000215: Invalid client sec
 
 **The `app.read` role is the one the Marketplace already grants**
 (`web-api-marketplace/config/default.json:63`), so an application registered through it works here
-unchanged. `AUTH_AUDIENCE` is the `hmcts-api-marketplace` registration rather than a try-slc-specific
-one, which is the same posture `api-cp-crime-schedulingandlisting-courtschedule`'s APIM
-`validate-jwt` policy takes against this tenant.
+unchanged.
+
+`AUTH_AUDIENCE` is `30288840…` because **that is the SLC API's own audience in this tenant** — the
+value `api-cp-crime-schedulingandlisting-courtschedule`'s APIM `validate-jwt` policy pins for
+`hmctsextsbox` (`infrastructure/sbox.tfvars:14`). It is not a stand-in for a try-slc registration.
+The audience is per-tenant for the real API too: `aat.tfvars` names `26b2922f…`, `prod.tfvars`
+`7d4eb263…`. A try-slc-specific audience would mean a registration nobody can get a token for, and
+a sandbox that rejects every credential the Marketplace issues.
 
 ### Configuring it
 
-Set `AUTH_KEY_SOURCE=ENTRA` and the service verifies real Microsoft Entra app-only access tokens
-against the issuing tenant's published keys. Three variables come with it, and startup fails naming
-whichever is missing:
+`SELF_ISSUED` is the default. Set `AUTH_KEY_SOURCE=ENTRA` and the service verifies real Microsoft
+Entra app-only access tokens against the issuing tenant's published keys. Three variables come with
+it, and startup fails naming whichever is missing:
 
 | Variable | Value |
 |---|---|

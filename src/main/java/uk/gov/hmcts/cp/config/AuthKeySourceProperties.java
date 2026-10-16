@@ -34,7 +34,7 @@ public class AuthKeySourceProperties {
     private final String selfIssuedIssuer;
 
     public AuthKeySourceProperties(
-            @Value("${auth.key-source:ENTRA}") final TokenKeySource keySource,
+            @Value("${auth.key-source:SELF_ISSUED}") final TokenKeySource keySource,
             @Value("${demo.self-issued.tenant-id}") final String selfIssuedTenantId,
             @Value("${demo.self-issued.audience}") final String selfIssuedAudience,
             @Value("${demo.self-issued.issuer}") final String selfIssuedIssuer,

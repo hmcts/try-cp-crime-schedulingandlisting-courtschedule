@@ -9,18 +9,14 @@ java:
   environment:
     APPLICATIONINSIGHTS_ENABLED: "false"
     APPLICATIONINSIGHTS_CONNECTION_STRING: "InstrumentationKey=00000000-0000-0000-0000-000000000000"
-    # Baseline realm for the environments Jenkins deploys from this chart - preview and the AAT
-    # staging slot - and both overlays restate it rather than relying on it.
+    # Restated rather than inherited. SELF_ISSUED is also application.yaml's default, so this line
+    # changes nothing today - it is here so that preview and the AAT staging slot say out loud which
+    # realm they rehearse, and a future change to the default cannot move them silently.
     #
     # It does NOT reach sandbox, AAT or demo. Flux deploys stable/amp-try-slc from hmcts-charts, a
     # separately published copy of this chart, overlaid with the HelmRelease patches in
     # cnp-flux-config/apps/amp/amp-try-slc/. Anything those three must have belongs in those
     # patches, where it applies to whatever chart version is live.
-    #
-    # application.yaml defaults to ENTRA so that an environment nobody configured fails closed. This
-    # line is the deliberate exception: without it, merging the key-source change would stop the
-    # running demo deployment at startup rather than leaving it as it is. An environment added here
-    # therefore inherits SELF_ISSUED silently - set it explicitly when you add one.
     AUTH_KEY_SOURCE: "SELF_ISSUED"
   # keyVaults are defined per-environment in the values.*.template.yaml overlays so sbox can use
   # amp-sbox without conflicting with the amp-{env} default.

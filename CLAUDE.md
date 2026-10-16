@@ -107,22 +107,39 @@ uk.gov.hmcts.cp/
   refuses to start if `auth.*` still holds the `demo.self-issued.*` values. Keep `demo.self-issued.*`
   as the single source of those identifiers — it is what the startup check compares against. In
   `SELF_ISSUED`, demo tokens stay worthless elsewhere because `iss`/`aud`/`tid` are this service's own.
-- **`ENTRA` is the default.** An environment nobody configured fails startup rather than accepting
-  tokens the service minted itself. Local development sets `AUTH_KEY_SOURCE=SELF_ISSUED` in `.env`;
-  the two `@SpringBootTest` classes set it as a test property.
-- **One tenant for every `ENTRA` environment: `hmctsextsbox`** (`d44f885c-…`, audience
-  `30288840-…`, the `hmcts-api-marketplace` registration that defines `app.read`). Not a try-slc
-  registration, and not `api-cp`'s `aat.tfvars`/`prod.tfvars` tenants: this is where
-  `service-api-marketplace` and `web-api-marketplace` register a consumer's application and grant it
-  the role, so it is the only tenant whose tokens a developer can actually obtain. Sandbox and AAT
-  use it; nothing else does.
-- **Preview and the AAT staging slot are `SELF_ISSUED`, so CI can prove the 200 path.** Both exist
-  only to run the Jenkins test stages, and those stages hold no Entra client secret — against an
-  `ENTRA` deployment the functional suite can assert the forged-token 401 and nothing more, and that
-  401 is indistinguishable from a blocked JWKS fetch. Self-issued, it mints a token and walks the
-  whole journey. `ENTRA` is verified against sandbox, where a real marketplace registration exists.
-  Do not flip these two to `ENTRA` to "match sandbox": the realms are per-environment by design, and
-  the thing a pre-merge stage can actually verify is the demo journey.
+- **`SELF_ISSUED` is the default**, so a checkout runs unconfigured and every environment except
+  sandbox needs no `AUTH_*` variable. The trade is explicit: an environment *meant* to be `ENTRA`
+  that loses `AUTH_KEY_SOURCE` falls back to self-minted tokens instead of failing to start. Only
+  sandbox is affected, and its `cnp-flux-config` patch sets it explicitly. The guard still fires in
+  the other direction — `ENTRA` with the `demo.self-issued.*` identifiers still in place refuses to
+  start.
+- **Sandbox is the only `ENTRA` environment, and it uses `hmctsextsbox`** (`d44f885c-…`, audience
+  `30288840-…`). That audience is **the SLC API's own**, not a stand-in for a try-slc registration:
+  it is what `api-cp-crime-schedulingandlisting-courtschedule` pins in `infrastructure/sbox.tfvars`
+  and enforces in its APIM `validate-jwt` policy for this tenant. The real API's audience is
+  per-tenant too (`aat.tfvars` `26b2922f-…`, `prod.tfvars` `7d4eb263-…`), so matching sandbox's is
+  what makes a consumer's credentials behave here as they do against the real API. Do not invent a
+  try-slc-specific audience: the token's `aud` is whatever the caller requested with
+  `scope=<resource>/.default`, and `web-api-marketplace` (`config/default.json:63`) grants roles on
+  `30288840-…` — a try-slc audience would be one nobody can obtain a token for.
+- **`app.read` only, and that is not an oversight.** `api-cp`'s APIM policy accepts
+  `["slc.read", "app.read"]` (`sbox.tfvars:24`, `match="any"`), but the live service behind it has
+  `KNOWN_ROLES = Set.of("app.read")` — verified against
+  `service-cp-crime-scheduleandlist-courtschedule/.../AuthorizationPolicy.java:22`. A caller holding
+  only `slc.read` passes APIM and is refused 403 by the service. try-slc matches the **service**,
+  which is the behaviour a consumer must rehearse. Adding `slc.read` here would make the sandbox
+  more permissive than production.
+- **Everything except sandbox is `SELF_ISSUED`, so CI can prove the 200 path.** Preview and the AAT
+  staging slot exist only to run the Jenkins test stages, and those stages hold no Entra client
+  secret — against an `ENTRA` deployment the functional suite can assert the forged-token 401 and
+  nothing more, and that 401 is indistinguishable from a blocked JWKS fetch. Self-issued, it mints a
+  token and walks the whole journey. Do not flip them to `ENTRA` to "match sandbox": the realms are
+  per-environment by design, and the thing a pre-merge stage can actually verify is the demo journey.
+- **`/scenarios` must not return credentials.** It is read by consumers evaluating the live API, most
+  holding an Entra token from their own registration; a client id and secret in that payload invites
+  them to use the wrong one. The demo pair lives in `README.md` and `docs/consumer-flow.md`.
+  `FunctionalTest.scenariosPublishesNoCredentials` asserts it in both realms — that test failing
+  means someone put `demoClients` back.
 - **Demo is `SELF_ISSUED`, and that is a decision with a reason.** It keeps the published demo
   credentials working, which is what the public catalogue's Try-it-out needs: a browser cannot
   complete a `client_credentials` exchange against Entra, so an Entra demo has no browser journey.
@@ -157,12 +174,12 @@ answers 400 naming the offending field. Recordings serve nothing until published
 | Any `az ... show` failure in a Jenkins log | Check before chasing it. The CNP library probes Azure with `show` commands and treats failure as "does not exist yet", so a first deployment prints several that look fatal and are not — Jenkins logs the step failure before Groovy catches it. The real failure is the **last** one, and normally says `FAILURE`, `Timeout`, `Aborted` or `Finished:` |
 | `pmd-analysis` red on a PR but `./gradlew build` green | PMD is not a Gradle task here — it runs only in the GitHub action, over `src/main/java` with `.github/pmd-ruleset.xml`. Checkstyle is what `build` runs. Reproduce with `pmd check --no-progress --no-cache -d src/main/java -f text -R .github/pmd-ruleset.xml`. The one that bites first is `CommentDefaultAccessModifier` on a package-private method: there is no `/* default */` convention anywhere in this repo or the live service, so make the method `private` and test through the public entry point instead |
 | Startup fails naming a stub file | That stub drifted from the contract, or `build.gradle` pinned a new contract version |
-| `bootRun` fails: *auth.key-source=ENTRA but AUTH_TENANT_ID is still the self-issued sandbox value* | The check working. `ENTRA` is the default; add `AUTH_KEY_SOURCE=SELF_ISSUED` to `.env`, or set all three of `AUTH_TENANT_ID`/`AUTH_AUDIENCE`/`AUTH_ISSUER` |
+| `bootRun` fails: *auth.key-source=ENTRA but AUTH_TENANT_ID is still the self-issued sandbox value* | The check working. Something set `AUTH_KEY_SOURCE=ENTRA` without the three identifiers — remove it (`SELF_ISSUED` is the default) or set all three of `AUTH_TENANT_ID`/`AUTH_AUDIENCE`/`AUTH_ISSUER` |
 | In `ENTRA`, every token answers 401 with `INVALID_CLAIMS` | Usually `aud`. A v2.0 token carries the resource's bare application id GUID, not `api://…`; startup logs a `SECURITY:` warning when `auth.audience` is not a GUID. Next most likely: the app registration is not on `requestedAccessTokenVersion: 2`, so Entra issued a v1 token with an `sts.windows.net` issuer |
 | In `ENTRA`, tokens verify but answer 403 | No `app.read` app role assigned to the calling application. `AuthorizationPolicy.KNOWN_ROLES` is the authority on the name — and it is `app.read` only, matching the live service. `web-api-marketplace` (`config/default.json:63`) grants that role on every application it registers, so a marketplace-issued consumer is fine; a hand-made registration carrying only `slc.read` is not |
 | In `ENTRA`, a token that decodes fine is still 401 `INVALID_CLAIMS` | Check `iss` before anything else. The `hmctsextsbox` tenant publishes **two** issuers: `https://login.microsoftonline.com/<tid>/v2.0` for `client_credentials`, and `https://<tid>.ciamlogin.com/<tid>/v2.0` for the CIAM user journeys `web-api-marketplace` signs people in through. `EntraTokenValidator` matches `iss` exactly, so they are not interchangeable — app-only callers must use `login.microsoftonline.com`. Do not add a second issuer to the validator; it is byte-identical to the live service's |
 | `/oauth2/v2.0/token` or `/.well-known/jwks.json` answers 404 | `auth.key-source=ENTRA`. Those endpoints do not exist in that realm — check `GET /scenarios` → `authentication.mode` |
-| Functional tests skip most of the suite | Expected in `ENTRA`: the demo-credential tests `assumeTrue(isSelfIssued())`. Skips keep the stage green, which matters because Jenkins' `junit` step has no `allowEmptyResults` here. Preview and AAT staging are `SELF_ISSUED` precisely so CI does not run in that mode — if a PR's functional stage is skipping, someone changed `values.preview.template.yaml`. **Known gap for sandbox and AAT:** nothing exercises the 200 path there — only the 404s and the forged-token 401. Closing it needs a functional test client registered in the issuing tenant with `app.read`, its id and secret mounted from the `amp-try-slc-{env}` vault |
+| Functional tests skip most of the suite | Expected in `ENTRA`: the demo-credential tests `assumeTrue(isSelfIssued())`. Skips keep the stage green, which matters because Jenkins' `junit` step has no `allowEmptyResults` here. Preview and AAT staging are `SELF_ISSUED` precisely so CI does not run in that mode — if a PR's functional stage is skipping, someone changed `values.preview.template.yaml`. **Known gap for sandbox:** nothing exercises the 200 path there — only the 404s and the forged-token 401. Closing it needs a functional test client registered in the issuing tenant with `app.read`, its id and secret mounted from the `amp-try-slc-sbox` vault |
 | Startup fails on `admin.auth.tenant-id` | The admin realm is half-configured. Set `ADMIN_DISABLED=true` locally, or supply a real tenant and audience. It fails closed on purpose |
 | `/admin/**` answers 503 | Admin realm disabled — not a bug, the configured state when no Entra app registration exists |
 | Ingest answers 400 naming a field | The contract gate working. Fix the spec or the capture, not the gate |

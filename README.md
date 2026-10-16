@@ -69,14 +69,20 @@ either way, differing only in where the verification keys come from:
 |---|---|---|
 | Token issued by | this service, at `/oauth2/v2.0/token` | Microsoft Entra |
 | Keys | held in memory — no outbound call at all | the tenant's JWKS, fetched over HTTPS |
-| Demo credentials | published in `/scenarios` | none; the token and JWKS endpoints do not exist |
+| Demo credentials | the pair below — **not** in `/scenarios` | none; the token and JWKS endpoints do not exist |
 | Needs | nothing | `AUTH_TENANT_ID`, `AUTH_AUDIENCE`, `AUTH_ISSUER`, and an app registration |
 
-`ENTRA` is the default, so an environment nobody configured fails closed at startup rather than
-accepting tokens this service minted itself. The realms are mutually exclusive by construction: in
-`ENTRA` the signing key, the minter and both demo endpoints leave the context, so the service cannot
-issue a token it would then have to reject. `GET /scenarios` reports which realm is live under
-`authentication.mode` — see [docs/consumer-flow.md](docs/consumer-flow.md).
+**`SELF_ISSUED` is the default**, so a checkout runs with no configuration and every environment
+except sandbox needs no `AUTH_*` variable at all. The realms are mutually exclusive by construction:
+in `ENTRA` the signing key, the minter and both demo endpoints leave the context, so the service
+cannot issue a token it would then have to reject. `GET /scenarios` reports which realm is live
+under `authentication.mode` — see [docs/consumer-flow.md](docs/consumer-flow.md).
+
+The cost of that default is worth naming: an environment *intended* to be `ENTRA` that loses its
+`AUTH_KEY_SOURCE` falls back to accepting self-minted tokens rather than failing to start. Only
+sandbox is `ENTRA`, and its `cnp-flux-config` patch sets the variable explicitly, so the way that
+happens is someone deleting that line. `AuthKeySourceProperties` still refuses to start in the other
+direction — `ENTRA` with the self-issued identifiers still in place.
 
 A consequence worth stating plainly: **everything this sandbox serves is in the repository.** If a
 case URN appears here, it was written into `stubs/scenarios.yaml` and reviewed in a pull request.
@@ -86,11 +92,39 @@ case URN appears here, it was written into `stubs/scenarios.yaml` and reviewed i
 ```bash
 BASE=https://amp-try-slc.demo.platform.hmcts.net   # VPN required - see Deployment
 
-curl -s $BASE/scenarios        # unauthenticated: case URNs, credentials, what each shows
+curl -s $BASE/scenarios        # unauthenticated: case URNs, which realm is live, what each shows
 ```
 
 `/scenarios` is the entry point and documents itself. The full walkthrough — token, call, the seven
 scenarios and the two demo clients — is in [docs/consumer-flow.md](docs/consumer-flow.md).
+
+### Demo credentials
+
+Both published deliberately. They work only in a `SELF_ISSUED` environment, and they authorise
+nothing anywhere else: the sandbox signs its own tokens, so the `iss`, `aud` and `tid` are its own
+and a token minted with them is worthless against any real HMCTS API.
+
+| Client | `client_id` | Outcome |
+|---|---|---|
+| Reader | `11111111-1111-4111-8111-111111111111` | Carries `app.read` — calls succeed |
+| Unentitled | `22222222-2222-4222-8222-222222222222` | No role — every call answers **403** |
+
+Secret for both: `try-it-now-demo-secret`. A wrong secret answers **401**, and neither the 401 nor
+the 403 is a canned body — both come from the validator that guards the live API.
+
+```bash
+TOKEN=$(curl -s -X POST $BASE/oauth2/v2.0/token \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  -d 'grant_type=client_credentials&client_id=11111111-1111-4111-8111-111111111111&client_secret=try-it-now-demo-secret' \
+  | jq -r .access_token)
+
+curl -s -H "Authorization: Bearer $TOKEN" $BASE/case/TIN-ALLOCATED-01/courtschedule
+```
+
+**They are here rather than in `GET /scenarios`, deliberately.** That response is read by consumers
+evaluating the live API, and most of them will be holding an Entra token from their own
+registration — a client id and secret in the payload invites them to use the wrong one. Nothing
+about the demo journey changed: `POST /oauth2/v2.0/token` still accepts these in `SELF_ISSUED`.
 
 ## Local development
 
@@ -194,7 +228,7 @@ of this service and there is not meant to be one.
 | preview | `amp-try-slc-pr-{N}.preview.platform.hmcts.net` | Jenkins, **this repo's chart** | `SELF_ISSUED` |
 | AAT staging | `amp-try-slc-staging.aat.platform.hmcts.net` | Jenkins, **this repo's chart** | `SELF_ISSUED` |
 | sandbox | `amp-try-slc.sandbox.platform.hmcts.net` | Flux | `ENTRA` (`d44f885c…`) |
-| AAT | `amp-try-slc.aat.platform.hmcts.net` | Flux | `ENTRA` (`d44f885c…`) |
+| AAT | `amp-try-slc.aat.platform.hmcts.net` | Flux | `SELF_ISSUED` |
 | **demo** | `amp-try-slc.demo.platform.hmcts.net` | Flux | `SELF_ISSUED` — **the live one**, deployed since 13 Oct 2026 |
 | production | — | — | **Deliberately none** |
 
@@ -207,18 +241,24 @@ per-environment `HelmRelease` patches in `cnp-flux-config/apps/amp/amp-try-slc/{
 until that chart is republished. Set anything those three environments must have in the
 `cnp-flux-config` patches, where it applies whatever chart version is live.
 
-**Every Entra environment uses `hmctsextsbox`** — `d44f885c…`, audience `30288840…`. That is the
+**Sandbox is the only `ENTRA` environment, and it uses `hmctsextsbox`** — `d44f885c…`, audience
+`30288840…`, which is **the SLC API's own audience in that tenant**: the pair
+`api-cp-crime-schedulingandlisting-courtschedule` pins in `infrastructure/sbox.tfvars:13-14` and its
+APIM `validate-jwt` policy enforces. Not a substitute for a try-slc registration — the real API uses
+a different audience in each tenant too (`aat.tfvars` `26b2922f…`, `prod.tfvars` `7d4eb263…`), and
+matching sandbox's is the point: a consumer's credentials must behave here exactly as they do
+against the real API. That is the
 tenant `service-api-marketplace` and `web-api-marketplace` both run against, so it is where a
 consumer's application is registered and granted `app.read`. The credentials a developer is actually
 issued are therefore the ones these environments accept. The same pair is committed in
 `api-cp-crime-schedulingandlisting-courtschedule`'s `preview.tfvars` and pinned by that API's APIM
 `validate-jwt` policy.
 
-**Preview and the AAT staging slot stay self-issued so CI can prove the 200 path.** Both exist to
-run the functional stage, and the stage has no Entra client secret to fetch a token with — against
-an `ENTRA` deployment it could only ever assert the 401, which is indistinguishable from a blocked
-JWKS fetch. Self-issued, it mints a token and exercises the whole journey. The `ENTRA` realm is
-verified against sandbox instead, where a real marketplace registration can be used.
+**Everything except sandbox is self-issued**, which is what keeps the demo journey working and lets
+CI prove the 200 path. Preview and the AAT staging slot exist to run the functional stage, and the
+stage has no Entra client secret to fetch a token with — against an `ENTRA` deployment it could only
+ever assert the 401, which is indistinguishable from a blocked JWKS fetch. Sandbox is where the
+`ENTRA` realm is exercised, with a real marketplace registration.
 
 **Demo stays self-issued for now.** It keeps the published demo credentials working, which is what
 the public catalogue's Try-it-out needs — a browser cannot complete a `client_credentials` exchange
