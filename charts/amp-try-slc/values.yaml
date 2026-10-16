@@ -9,6 +9,18 @@ java:
   environment:
     APPLICATIONINSIGHTS_ENABLED: "false"
     APPLICATIONINSIGHTS_CONNECTION_STRING: "InstrumentationKey=00000000-0000-0000-0000-000000000000"
+    # Baseline realm for any environment whose Entra configuration has not landed yet - today
+    # sandbox and demo, both of which take their environment from cnp-flux-config rather than from
+    # this chart. Preview and AAT override it to ENTRA in their template overlays below.
+    #
+    # application.yaml defaults to ENTRA so that an environment nobody configured fails closed. This
+    # line is the deliberate exception: without it, merging the key-source change would stop the
+    # running demo deployment at startup rather than leaving it as it is. An environment added here
+    # therefore inherits SELF_ISSUED silently - set it explicitly when you add one.
+    #
+    # Demo stays SELF_ISSUED by decision, not by omission: it is where the catalogue sends
+    # consumers, and a browser cannot complete a client_credentials exchange against Entra.
+    AUTH_KEY_SOURCE: "SELF_ISSUED"
   # keyVaults are defined per-environment in the values.*.template.yaml overlays so sbox can use
   # amp-sbox without conflicting with the amp-{env} default.
   #

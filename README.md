@@ -189,13 +189,21 @@ tracked in [CNP-ONBOARDING-PLAN.md](CNP-ONBOARDING-PLAN.md).
 **Demo is the last environment.** Sandbox, preview, AAT, then demo. There is no production deployment
 of this service and there is not meant to be one.
 
-| Environment | Host | Role |
-|---|---|---|
-| sandbox | `amp-try-slc.sandbox.platform.hmcts.net` | Build and rehearse |
-| preview | `amp-try-slc-pr-{N}.preview.platform.hmcts.net` | Per-PR. Uninstalled at the end of each build unless the PR carries `enable_keep_helm` |
-| AAT | `amp-try-slc.aat.platform.hmcts.net` | Jenkins also deploys an ephemeral `amp-try-slc-staging` for its test stages |
-| **demo** | `amp-try-slc.demo.platform.hmcts.net` | **The live one.** Deployed since 13 Oct 2026 |
-| production | — | **Deliberately none** |
+| Environment | Host | Token realm | Role |
+|---|---|---|---|
+| sandbox | `amp-try-slc.sandbox.platform.hmcts.net` | `SELF_ISSUED` — pending a `cnp-flux-config` patch | Build and rehearse |
+| preview | `amp-try-slc-pr-{N}.preview.platform.hmcts.net` | `ENTRA` (`d44f885c…`) | Per-PR. Uninstalled at the end of each build unless the PR carries `enable_keep_helm` |
+| AAT | `amp-try-slc.aat.platform.hmcts.net` | `ENTRA` (`db827888…`) | Jenkins also deploys an ephemeral `amp-try-slc-staging` for its test stages |
+| **demo** | `amp-try-slc.demo.platform.hmcts.net` | `SELF_ISSUED` | **The live one.** Deployed since 13 Oct 2026 |
+| production | — | — | **Deliberately none** |
+
+**Demo stays self-issued deliberately.** It is where the public catalogue sends consumers, and a
+browser cannot complete a `client_credentials` exchange against Entra — so Entra there would mean no
+browser journey at all. Preview and AAT carry the real tenants, taken from
+`api-cp-crime-schedulingandlisting-courtschedule`'s `preview.tfvars` and `aat.tfvars`, which are the
+same values that API's APIM `validate-jwt` policy pins. Sandbox and demo take their environment from
+`cnp-flux-config`, not from this chart; the chart's baseline of `SELF_ISSUED` is what keeps them
+working until a patch there says otherwise.
 
 **Every one of these currently needs the VPN**, demo included. They are records in Azure *private*
 DNS zones and no Front Door configuration exists for this service in `cnp-flux-config` — the demo
