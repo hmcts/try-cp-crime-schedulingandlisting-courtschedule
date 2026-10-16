@@ -1,6 +1,7 @@
 package uk.gov.hmcts.cp.controllers;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -27,8 +28,12 @@ import java.util.Optional;
  * <p>The path is fixed rather than carrying a {@code /{tenant}/} segment, because
  * {@link AuthorizationPolicy} exempts paths by exact match — a variable segment could not be
  * enumerated, and a prefix exemption would silently exempt anything added beneath it later.
+ *
+ * <p>Absent in {@link uk.gov.hmcts.cp.config.TokenKeySource#ENTRA}. That is the point of the flag:
+ * a service verifying real Entra tokens must not also be handing out tokens of its own.
  */
 @RestController
+@ConditionalOnProperty(name = "auth.key-source", havingValue = "SELF_ISSUED")
 @Slf4j
 public class DemoTokenController {
 

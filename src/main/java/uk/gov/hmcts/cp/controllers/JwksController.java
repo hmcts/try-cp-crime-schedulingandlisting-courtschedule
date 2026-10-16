@@ -1,5 +1,6 @@
 package uk.gov.hmcts.cp.controllers;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -14,8 +15,12 @@ import java.util.Map;
  * <p>The validator does not read this endpoint — it verifies against an in-memory key set, so the
  * service needs no network access to authenticate a request. This exists so a consumer can inspect
  * the key, and so the sandbox presents the same discovery surface as a real issuer.
+ *
+ * <p>Absent in {@link uk.gov.hmcts.cp.config.TokenKeySource#ENTRA}, where the keys are Entra's and
+ * published by Entra.
  */
 @RestController
+@ConditionalOnProperty(name = "auth.key-source", havingValue = "SELF_ISSUED")
 public class JwksController {
 
     private final DemoSigningKey demoSigningKey;

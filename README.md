@@ -58,9 +58,31 @@ The database is there because it is the store the service was built around, and 
 path is expected to come back — see [#37](https://github.com/hmcts/try-cp-crime-schedulingandlisting-courtschedule/pull/37).
 Today it holds exactly what the repository holds.
 
-**It makes no outbound call to anything.** It validates tokens against a key it holds in memory and
-answers from its own store, which is what lets it live in CNP with no CP connectivity and no route
-to the live estate. There is no CP-to-CNP peering, and `cnp-cp-integration` is an empty repo.
+**It makes no call to the Common Platform, ever.** It answers from its own store, which is what lets
+it live in CNP with no CP connectivity and no route to the live estate. There is no CP-to-CNP
+peering, and `cnp-cp-integration` is an empty repo.
+
+**Two token realms, set per environment** by `auth.key-source` — the same `EntraTokenValidator`
+either way, differing only in where the verification keys come from:
+
+| | `SELF_ISSUED` | `ENTRA` |
+|---|---|---|
+| Token issued by | this service, at `/oauth2/v2.0/token` | Microsoft Entra |
+| Keys | held in memory — no outbound call at all | the tenant's JWKS, fetched over HTTPS |
+| Demo credentials | the pair below — **not** in `/scenarios` | none; the token and JWKS endpoints do not exist |
+| Needs | nothing | `AUTH_TENANT_ID`, `AUTH_AUDIENCE`, `AUTH_ISSUER`, and an app registration |
+
+**`SELF_ISSUED` is the default**, so a checkout runs with no configuration and every environment
+except sandbox needs no `AUTH_*` variable at all. The realms are mutually exclusive by construction:
+in `ENTRA` the signing key, the minter and both demo endpoints leave the context, so the service
+cannot issue a token it would then have to reject. `GET /scenarios` reports which realm is live
+under `authentication.mode` — see [docs/consumer-flow.md](docs/consumer-flow.md).
+
+The cost of that default is worth naming: an environment *intended* to be `ENTRA` that loses its
+`AUTH_KEY_SOURCE` falls back to accepting self-minted tokens rather than failing to start. Only
+sandbox is `ENTRA`, and its `cnp-flux-config` patch sets the variable explicitly, so the way that
+happens is someone deleting that line. `AuthKeySourceProperties` still refuses to start in the other
+direction — `ENTRA` with the self-issued identifiers still in place.
 
 A consequence worth stating plainly: **everything this sandbox serves is in the repository.** If a
 case URN appears here, it was written into `stubs/scenarios.yaml` and reviewed in a pull request.
@@ -70,11 +92,39 @@ case URN appears here, it was written into `stubs/scenarios.yaml` and reviewed i
 ```bash
 BASE=https://amp-try-slc.demo.platform.hmcts.net   # VPN required - see Deployment
 
-curl -s $BASE/scenarios        # unauthenticated: case URNs, credentials, what each shows
+curl -s $BASE/scenarios        # unauthenticated: case URNs, which realm is live, what each shows
 ```
 
 `/scenarios` is the entry point and documents itself. The full walkthrough — token, call, the seven
 scenarios and the two demo clients — is in [docs/consumer-flow.md](docs/consumer-flow.md).
+
+### Demo credentials
+
+Both published deliberately. They work only in a `SELF_ISSUED` environment, and they authorise
+nothing anywhere else: the sandbox signs its own tokens, so the `iss`, `aud` and `tid` are its own
+and a token minted with them is worthless against any real HMCTS API.
+
+| Client | `client_id` | Outcome |
+|---|---|---|
+| Reader | `11111111-1111-4111-8111-111111111111` | Carries `app.read` — calls succeed |
+| Unentitled | `22222222-2222-4222-8222-222222222222` | No role — every call answers **403** |
+
+Secret for both: `try-it-now-demo-secret`. A wrong secret answers **401**, and neither the 401 nor
+the 403 is a canned body — both come from the validator that guards the live API.
+
+```bash
+TOKEN=$(curl -s -X POST $BASE/oauth2/v2.0/token \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  -d 'grant_type=client_credentials&client_id=11111111-1111-4111-8111-111111111111&client_secret=try-it-now-demo-secret' \
+  | jq -r .access_token)
+
+curl -s -H "Authorization: Bearer $TOKEN" $BASE/case/TIN-ALLOCATED-01/courtschedule
+```
+
+**They are here rather than in `GET /scenarios`, deliberately.** That response is read by consumers
+evaluating the live API, and most of them will be holding an Entra token from their own
+registration — a client id and secret in the payload invites them to use the wrong one. Nothing
+about the demo journey changed: `POST /oauth2/v2.0/token` still accepts these in `SELF_ISSUED`.
 
 ## Local development
 
@@ -115,6 +165,7 @@ vault, mounted by Flux.
 
 | Variable | Default | What it does |
 |---|---|---|
+| `AUTH_KEY_SOURCE` | `ENTRA` | **Set this to `SELF_ISSUED` locally.** The default fails closed so an unconfigured deployed environment cannot accept self-minted tokens; locally you want the sandbox to mint its own |
 | `POSTGRES_HOST` | `localhost` | |
 | `POSTGRES_PORT` | `5432` | **Set this to 55432** — see above |
 | `POSTGRES_DATABASE` | `tryitnow` | |
@@ -132,6 +183,14 @@ vault, mounted by Flux.
 curl localhost:8080/scenarios
 curl localhost:8080/health
 ```
+
+If `bootRun` exits with
+
+```
+auth.key-source=ENTRA but AUTH_TENANT_ID is still the self-issued sandbox value
+```
+
+that is the check working, not a fault: `AUTH_KEY_SOURCE=SELF_ISSUED` is missing from your `.env`.
 
 `./gradlew build` needs Docker running — the store and the full ingest/publish journey are tested
 against a real Postgres via TestContainers, not an in-memory substitute.
@@ -164,13 +223,54 @@ tracked in [CNP-ONBOARDING-PLAN.md](CNP-ONBOARDING-PLAN.md).
 **Demo is the last environment.** Sandbox, preview, AAT, then demo. There is no production deployment
 of this service and there is not meant to be one.
 
-| Environment | Host | Role |
-|---|---|---|
-| sandbox | `amp-try-slc.sandbox.platform.hmcts.net` | Build and rehearse |
-| preview | `amp-try-slc-pr-{N}.preview.platform.hmcts.net` | Per-PR. Uninstalled at the end of each build unless the PR carries `enable_keep_helm` |
-| AAT | `amp-try-slc.aat.platform.hmcts.net` | Jenkins also deploys an ephemeral `amp-try-slc-staging` for its test stages |
-| **demo** | `amp-try-slc.demo.platform.hmcts.net` | **The live one.** Deployed since 13 Oct 2026 |
-| production | — | **Deliberately none** |
+| Environment | Host | Deployed by | Token realm |
+|---|---|---|---|
+| preview | `amp-try-slc-pr-{N}.preview.platform.hmcts.net` | Jenkins, **this repo's chart** | `SELF_ISSUED` |
+| AAT staging | `amp-try-slc-staging.aat.platform.hmcts.net` | Jenkins, **this repo's chart** | `SELF_ISSUED` |
+| sandbox | `amp-try-slc.sandbox.platform.hmcts.net` | Flux | `ENTRA` (`d44f885c…`) |
+| AAT | `amp-try-slc.aat.platform.hmcts.net` | Flux | `SELF_ISSUED` |
+| **demo** | `amp-try-slc.demo.platform.hmcts.net` | Flux | `SELF_ISSUED` — **the live one**, deployed since 13 Oct 2026 |
+| production | — | — | **Deliberately none** |
+
+**Which chart deploys which environment is the thing to get right here.** Jenkins builds from
+`charts/amp-try-slc/` in this repo, so `values.preview.template.yaml` and
+`values.aat.template.yaml` configure preview and the ephemeral staging slot. Flux deploys
+`stable/amp-try-slc` from **`hmcts-charts`** — a separate published copy — overlaid with the
+per-environment `HelmRelease` patches in `cnp-flux-config/apps/amp/amp-try-slc/{sbox,aat,demo}.yaml`.
+**A change to `charts/amp-try-slc/values.yaml` in this repo does not reach sandbox, AAT or demo**
+until that chart is republished. Set anything those three environments must have in the
+`cnp-flux-config` patches, where it applies whatever chart version is live.
+
+**Sandbox is the only `ENTRA` environment, and it uses `hmctsextsbox`** — `d44f885c…`, audience
+`30288840…`. That is the **shared `hmcts-api-marketplace` audience for every API in that tenant** —
+`api-cp-crime-defendant-details`'s `sbox.tfvars` pins the same GUID — and it is what the SLC API's
+own APIM `validate-jwt` policy pins there (`api-cp-crime-schedulingandlisting-courtschedule`,
+`infrastructure/sbox.tfvars:13-14`).
+
+So it is the correct value, and a try-slc-specific audience would be wrong rather than tidier. The
+`aud` of a `client_credentials` token is whatever the caller asked for with
+`scope=<resource>/.default`, and `web-api-marketplace` (`config/default.json:63`) grants `app.read`
+on `30288840…` — that is the only resource a Marketplace-registered consumer can request. Pinning
+anything else would reject every credential the Marketplace issues. The real API's audience is
+per-tenant too (`aat.tfvars` `26b2922f…`, `prod.tfvars` `7d4eb263…`); matching sandbox's is what
+makes a consumer's credentials behave here as they do against the real API. That is the
+tenant `service-api-marketplace` and `web-api-marketplace` both run against, so it is where a
+consumer's application is registered and granted `app.read`. The credentials a developer is actually
+issued are therefore the ones these environments accept. The same pair is committed in
+`api-cp-crime-schedulingandlisting-courtschedule`'s `preview.tfvars` and pinned by that API's APIM
+`validate-jwt` policy.
+
+**Everything except sandbox is self-issued**, which is what keeps the demo journey working and lets
+CI prove the 200 path. Preview and the AAT staging slot exist to run the functional stage, and the
+stage has no Entra client secret to fetch a token with — against an `ENTRA` deployment it could only
+ever assert the 401, which is indistinguishable from a blocked JWKS fetch. Sandbox is where the
+`ENTRA` realm is exercised, with a real marketplace registration.
+
+**Demo stays self-issued for now.** It keeps the published demo credentials working, which is what
+the public catalogue's Try-it-out needs — a browser cannot complete a `client_credentials` exchange
+against Entra, so an Entra demo would have no browser journey at all. Which tenant it should
+eventually validate against is not settled; when it is, three variables in
+`cnp-flux-config/apps/amp/amp-try-slc/demo.yaml` replace one.
 
 **Every one of these currently needs the VPN**, demo included. They are records in Azure *private*
 DNS zones and no Front Door configuration exists for this service in `cnp-flux-config` — the demo

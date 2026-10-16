@@ -7,6 +7,7 @@ import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.security.GeneralSecurityException;
@@ -32,6 +33,7 @@ import java.util.Base64;
  * setup. That path logs a warning and is never appropriate for a deployed environment.
  */
 @Component
+@ConditionalOnProperty(name = "auth.key-source", havingValue = "SELF_ISSUED")
 @Slf4j
 public class DemoSigningKey {
 

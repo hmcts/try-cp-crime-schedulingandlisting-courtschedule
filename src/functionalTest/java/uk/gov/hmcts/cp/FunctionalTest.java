@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * Walks the journey the catalogue tells a consumer to walk, against a real deployment.
@@ -45,6 +46,14 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>In-process equivalents of the auth rules live in {@code DemoTokenRoundTripTest}. What only this
  * suite can prove is that they survive the deployed configuration — the vault-mounted signing key,
  * the ingress, and {@code AuthorizationPolicy} as the running pod sees it.
+ *
+ * <p><b>Which half of the suite runs is decided by the pod, not by this file.</b> Every demo-credential
+ * test is skipped where {@code /scenarios} reports {@code authentication.mode: entra}, because there
+ * the token endpoint does not exist and no credentials are published — see
+ * {@code uk.gov.hmcts.cp.config.TokenKeySource}. Skipping rather than deleting matters: this stage has
+ * no opt-out (Jenkins calls {@code junit} with no {@code allowEmptyResults}), and a functional failure
+ * uninstalls the release, so the day an environment flips to Entra the stage must go green by
+ * reporting skips, not red by calling an endpoint that was removed on purpose.
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class FunctionalTest {
@@ -77,22 +86,25 @@ class FunctionalTest {
     }
 
     @Test
-    @DisplayName("/scenarios publishes both demo clients, so a consumer can self-serve credentials")
-    void scenariosPublishesTheDemoCredentials() {
-        final JsonNode demoClients = scenarios.get("demoClients");
+    @DisplayName("/scenarios publishes no credentials, in either realm")
+    void scenariosPublishesNoCredentials() {
+        assertThat(scenarios.get("demoClients"))
+                .describedAs("%s is read by consumers evaluating the live API, most of them holding an "
+                        + "Entra token from their own registration. A client id and secret in this "
+                        + "payload invites them to use the wrong one - the demo credentials belong in "
+                        + "the README", AuthorizationPolicy.PATH_SCENARIOS)
+                .isNull();
 
-        assertThat(demoClients).isNotNull();
-        assertThat(demoClients.isArray()).isTrue();
-        assertThat(demoClients.toString())
-                .describedAs("both the entitled and the role-less client must be advertised - the "
-                        + "second is how a consumer exercises its 403 handling")
-                .contains(DemoClientRegistry.READER_CLIENT_ID.toString())
-                .contains(DemoClientRegistry.NO_ROLE_CLIENT_ID.toString());
+        assertThat(scenarios.toString())
+                .describedAs("no demo client id may appear anywhere in the response")
+                .doesNotContain(DemoClientRegistry.READER_CLIENT_ID.toString())
+                .doesNotContain(DemoClientRegistry.NO_ROLE_CLIENT_ID.toString());
     }
 
     @Test
     @DisplayName("the token endpoint issues a Bearer token for the entitled demo client")
     void tokenEndpointIssuesABearerToken() throws IOException, InterruptedException {
+        assumeSelfIssued();
         final HttpResponse<String> response =
                 requestToken(DemoClientRegistry.READER_CLIENT_ID.toString(), DemoClientRegistry.DEMO_SECRET);
 
@@ -109,6 +121,7 @@ class FunctionalTest {
     @Test
     @DisplayName("a wrong client secret is refused with invalid_client, not a canned error")
     void wrongSecretIsRefused() throws IOException, InterruptedException {
+        assumeSelfIssued();
         final HttpResponse<String> response =
                 requestToken(DemoClientRegistry.READER_CLIENT_ID.toString(), "not-the-published-secret");
 
@@ -131,6 +144,7 @@ class FunctionalTest {
     @Test
     @DisplayName("an entitled token fetches every published schedule, contract-shaped")
     void entitledTokenFetchesEverySchedule() throws IOException, InterruptedException {
+        assumeSelfIssued();
         final String token = tokenFor(DemoClientRegistry.READER_CLIENT_ID);
         boolean sawAnIdentifiedHearing = false;
 
@@ -169,6 +183,7 @@ class FunctionalTest {
     @Test
     @DisplayName("the role-less demo client is refused with 403 insufficient_scope")
     void unentitledClientIsRefused() throws IOException, InterruptedException {
+        assumeSelfIssued();
         // A real 403 from the copied validator, not a fixture: the client's token verifies, it simply
         // carries no application role. See DemoTokenRoundTripTest for which layer refuses it.
         final HttpResponse<String> response =
@@ -181,6 +196,7 @@ class FunctionalTest {
     @Test
     @DisplayName("every URN published as a 404 answers 404, even for an entitled caller")
     void urnsPublishedAsNotFoundAnswerNotFound() throws IOException, InterruptedException {
+        assumeSelfIssued();
         final String token = tokenFor(DemoClientRegistry.READER_CLIENT_ID);
 
         for (final String path : pathsOfScenariosAnswering(404)) {
@@ -188,6 +204,35 @@ class FunctionalTest {
                     .describedAs("GET %s - /scenarios publishes this URN as a 404", path)
                     .isEqualTo(404);
         }
+    }
+
+    @Test
+    @DisplayName("an Entra environment publishes no credentials and no token endpoint")
+    void entraEnvironmentMintsNothing() throws IOException, InterruptedException {
+        assumeTrue(!isSelfIssued(), "self-issued realm - the demo endpoints are meant to exist here");
+
+        assertThat(scenarios.path("authentication").path("tokenEndpoint").asText())
+                .describedAs("the caller must be pointed at Entra, not at this service")
+                .startsWith("https://login.microsoftonline.com/");
+
+        assertThat(requestToken(UUID.randomUUID().toString(), "irrelevant").statusCode())
+                .describedAs("POST %s - a service verifying real Entra tokens must not also be handing "
+                        + "out tokens of its own", AuthorizationPolicy.PATH_TOKEN)
+                .isEqualTo(404);
+    }
+
+    @Test
+    @DisplayName("an Entra environment refuses a token it did not get from Entra")
+    void entraEnvironmentRefusesAForgedToken() throws IOException, InterruptedException {
+        assumeTrue(!isSelfIssued(), "self-issued realm - covered by the demo-credential tests above");
+
+        // Structurally a JWT, signed by nobody Entra knows. The point is that it is refused by
+        // signature rather than reaching the controller.
+        final String forged = "eyJhbGciOiJSUzI1NiIsImtpZCI6Im5vbmUifQ.eyJzdWIiOiJub2JvZHkifQ.bm90LWEtc2ln";
+        final HttpResponse<String> response = get(pathsOfScenariosAnswering(200).getFirst(), forged);
+
+        assertThat(response.statusCode()).isEqualTo(401);
+        assertThat(response.body()).contains("invalid_token");
     }
 
     /**
@@ -210,6 +255,20 @@ class FunctionalTest {
                 .isNotEmpty();
 
         return paths;
+    }
+
+    /**
+     * Which realm the deployed pod is running. Absent {@code authentication} means a pod older than
+     * the flag, which could only be self-issued — so the demo tests still run against it rather than
+     * silently skipping and reporting green.
+     */
+    private boolean isSelfIssued() {
+        return !"entra".equals(scenarios.path("authentication").path("mode").asText());
+    }
+
+    private void assumeSelfIssued() {
+        assumeTrue(isSelfIssued(),
+                "Entra realm - this service mints no tokens here, so there are no demo credentials to use");
     }
 
     private String tokenFor(final UUID clientId) throws IOException, InterruptedException {

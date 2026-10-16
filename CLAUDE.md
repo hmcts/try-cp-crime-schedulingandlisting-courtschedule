@@ -25,7 +25,9 @@ uk.gov.hmcts.cp/
     AdminTokenValidator               Wraps an EntraTokenValidator - not a second bean of that type
     AuthMode, ValidatedCaller, TokenValidationException
   config/
-    AppConfig                         ImmutableJWKSet (NOT JWKSourceBuilder), validator, ClockService
+    TokenKeySource                    SELF_ISSUED | ENTRA - which realm, and therefore who issued the token
+    AuthKeySourceProperties           auth.key-source + the ENTRA startup check; NOT part of the copied set
+    AppConfig                         Picks ImmutableJWKSet or JWKSourceBuilder, validator, ClockService
     CorsConfig                        Allows the catalogue origin; Try-it-out is a browser fetch
   controllers/
     CourtScheduleController           Implements generated CourtScheduleApi; reads from ScenarioCatalog
@@ -77,11 +79,13 @@ uk.gov.hmcts.cp/
   `diff -r` against that repo is the check. `AuthorizationPolicy` (exempt paths),
   `ClientIdResolutionFilter` (CORS preflight) and `TracingFilter` (traceId generation) diverge
   deliberately, each documented in-file.
-- **Auth is real, not mocked.** `AUTH_MODE=ENFORCE`. The only change is the key *source*:
-  `ImmutableJWKSet` instead of a JWKS fetch. Never set `AUTH_MODE=OFF` — it would delete the
-  behaviour this service exists to demonstrate.
-- **Two auth realms, and they must not be confused.** The demo realm (self-issued, credentials
-  published in the catalogue) guards the public read API. The admin realm (`AdminAuthFilter`, real
+- **Auth is real, not mocked.** `AUTH_MODE=ENFORCE`. The only thing that varies is the key *source*,
+  via `auth.key-source` (`uk.gov.hmcts.cp.config.TokenKeySource`): `ImmutableJWKSet` over the demo key
+  (`SELF_ISSUED`) or a `JWKSourceBuilder` fetching the tenant's JWKS (`ENTRA`). Never set
+  `AUTH_MODE=OFF` — it would delete the behaviour this service exists to demonstrate.
+- **Two auth realms, and they must not be confused.** *(Not on master: the admin half was removed in
+  PR #36 and is restored by PR #37. Kept here because it applies the moment that lands.)* The demo
+  realm (self-issued, credentials published in the catalogue) guards the public read API. The admin realm (`AdminAuthFilter`, real
   corporate Entra) guards `/admin/**`. `AuthorizationPolicy.isExemptFromValidation` returns true for
   `/admin` — that does **not** mean public, it means the admin filter at a lower order already
   handled it. Removing `AdminAuthFilter` without removing that would leave ingest wide open.
@@ -94,8 +98,56 @@ uk.gov.hmcts.cp/
 - **Stubs go through the generated model.** `ScenarioCatalog` deserialises with
   `FAIL_ON_UNKNOWN_PROPERTIES`; responses are re-serialised from `CourtScheduleResponse`. Never serve
   raw JSON straight through — that is the one guarantee a WireMock/Prism deployment cannot make.
-- **Demo tokens must stay worthless elsewhere.** `iss`/`aud`/`tid` are this service's own. Never
-  point `auth.*` at a real Entra tenant.
+- **The key source and the minter must agree, and that is load-bearing.** `DemoTokenMinter` reads the
+  same `EntraAuthProperties` the validator does, so pointing `auth.*` at a real tenant while minting
+  is enabled would stamp Microsoft's issuer on a token signed with the demo key — a token nothing can
+  verify, advertised by `/scenarios` as the way in. So `auth.key-source=ENTRA` removes
+  `DemoSigningKey`, `DemoTokenMinter`, `DemoClientRegistry`, `DemoTokenController` and
+  `JwksController` from the context via `@ConditionalOnProperty`, and `AuthKeySourceProperties`
+  refuses to start if `auth.*` still holds the `demo.self-issued.*` values. Keep `demo.self-issued.*`
+  as the single source of those identifiers — it is what the startup check compares against. In
+  `SELF_ISSUED`, demo tokens stay worthless elsewhere because `iss`/`aud`/`tid` are this service's own.
+- **`SELF_ISSUED` is the default**, so a checkout runs unconfigured and every environment except
+  sandbox needs no `AUTH_*` variable. The trade is explicit: an environment *meant* to be `ENTRA`
+  that loses `AUTH_KEY_SOURCE` falls back to self-minted tokens instead of failing to start. Only
+  sandbox is affected, and its `cnp-flux-config` patch sets it explicitly. The guard still fires in
+  the other direction — `ENTRA` with the `demo.self-issued.*` identifiers still in place refuses to
+  start.
+- **Sandbox is the only `ENTRA` environment, and it uses `hmctsextsbox`** (`d44f885c-…`, audience
+  `30288840-…`). That audience is the **shared `hmcts-api-marketplace` one for every API in the
+  tenant** — `api-cp-crime-defendant-details`'s `sbox.tfvars` pins the same GUID — and it is what
+  the SLC API's own APIM `validate-jwt` policy pins there (`api-cp`'s `infrastructure/sbox.tfvars`).
+  The real API's audience is per-tenant too (`aat.tfvars` `26b2922f-…`, `prod.tfvars` `7d4eb263-…`),
+  so matching sandbox's is what makes a consumer's credentials behave here as they do against the
+  real API. **Do not invent a try-slc-specific audience**, however much tidier it reads: the token's
+  `aud` is whatever the caller requested with `scope=<resource>/.default`, and `web-api-marketplace`
+  (`config/default.json:63`) grants `app.read` on `30288840-…`, so a try-slc audience would be one
+  no consumer can obtain a token for.
+- **`app.read` only, and that is not an oversight.** `api-cp`'s APIM policy accepts
+  `["slc.read", "app.read"]` (`sbox.tfvars:24`, `match="any"`), but the live service behind it has
+  `KNOWN_ROLES = Set.of("app.read")` — verified against
+  `service-cp-crime-scheduleandlist-courtschedule/.../AuthorizationPolicy.java:22`. A caller holding
+  only `slc.read` passes APIM and is refused 403 by the service. try-slc matches the **service**,
+  which is the behaviour a consumer must rehearse. Adding `slc.read` here would make the sandbox
+  more permissive than production.
+- **Everything except sandbox is `SELF_ISSUED`, so CI can prove the 200 path.** Preview and the AAT
+  staging slot exist only to run the Jenkins test stages, and those stages hold no Entra client
+  secret — against an `ENTRA` deployment the functional suite can assert the forged-token 401 and
+  nothing more, and that 401 is indistinguishable from a blocked JWKS fetch. Self-issued, it mints a
+  token and walks the whole journey. Do not flip them to `ENTRA` to "match sandbox": the realms are
+  per-environment by design, and the thing a pre-merge stage can actually verify is the demo journey.
+- **`/scenarios` must not return credentials.** It is read by consumers evaluating the live API, most
+  holding an Entra token from their own registration; a client id and secret in that payload invites
+  them to use the wrong one. The demo pair lives in `README.md` and `docs/consumer-flow.md`.
+  `FunctionalTest.scenariosPublishesNoCredentials` asserts it in both realms — that test failing
+  means someone put `demoClients` back.
+- **Demo is `SELF_ISSUED`, and that is a decision with a reason.** It keeps the published demo
+  credentials working, which is what the public catalogue's Try-it-out needs: a browser cannot
+  complete a `client_credentials` exchange against Entra, so an Entra demo has no browser journey.
+  Which tenant it should eventually validate against is unsettled. If it ever moves to the
+  production tenant, note the consequence — a token valid against the **production** Court Schedule
+  API becomes valid here, which is safe in this direction only (no CP data, no route to CP, no write
+  surface) and must never be made true in reverse.
 
 ## Adding a scenario
 
@@ -118,10 +170,18 @@ answers 400 naming the offending field. Recordings serve nothing until published
 | `processResources` fails: *Entry META-INF/build-info.properties is a duplicate* | Something added a `springBoot.buildInfo` block. The pipeline already generates that file, so Gradle generating a second one collides. **Do not fix this with `duplicatesStrategy`** — the generated file then wins and the pipeline's `build.commit` and `build.number` are lost. Remove the block; see the note in `build.gradle` |
 | `bootJar` fails: *Could not find org.openapitools:openapi-generator-core* | `api-cp-*` publishes the OpenAPI generator, `swagger-parser` and `swagger-annotations` in its **runtimeElements** variant, though all three are build-time only. `apiElements` declares none of them, so `compileJava` passes and `bootJar` — the first task to resolve `runtimeClasspath` — is where it breaks. They are excluded in `build.gradle`; **do not re-add**. Green locally, red on Jenkins, because two of the coordinates are not resolvable on the CNP agent |
 | Configuration fails: *Could not resolve io.github.ben-manes:gradle-versions-plugin* | That plugin was removed. Its artefact is not on Maven Central - only the Gradle Plugin Portal, which serves downloads from a separate host (`plugins-artifacts.gradle.org`), so it is fragile on a CNP agent. Nothing ran `dependencyUpdates`; Renovate covers it. **Do not re-add it** - see the note in `build.gradle` |
+| Jenkins says *This commit cannot be built* | Usually **not** "superseded". The CNP pipeline runs `./gradlew -q dependencies` early, and when that step dies Jenkins records NOT_BUILT and posts this wording — so a real failure reads like a skipped build. Open the build log before concluding anything. The one seen repeatedly here is `Received status code 429 from server: Too Many Requests` against `repo.maven.apache.org`, resolving the **buildscript** classpath (`spring-boot-gradle-plugin`) through `plugins.gradle.org/m2`. Intermittent — roughly half the builds since 15 Oct 2026, master included. **Not fixable in this repo:** the `repositories` block in `build.gradle` governs project dependencies only, and the `hmcts-lib` Azure Artifacts feed does not proxy Central (404 for that artifact), so a `pluginManagement` block pointing at it would change nothing. Central answers 200 from a laptop, so it is the shared CNP agent egress being rate-limited — platform territory, `#platops-help`. **Do not just re-run:** Sonatype's own guidance is that repeated requests during a block extend it, up to 24 hours. A re-run sometimes passes; a habit of re-running makes it worse. The fix is a caching repository manager in front of Central (the `hmcts-lib` feed has no Central upstream today) |
 | Jenkins logs `repository "<product>/try-slc" is not found` during Checkout | Benign. `Acr.hasRepoTag` runs `az acr repository show-tags` only to decide whether an image rebuild can be skipped, and swallows the failure (`Acr.groovy:626-631`). Jenkins prints the step failure before Groovy catches it, so it looks fatal. Expected until the first build pushes an image, and again after any product rename |
 | Jenkins logs `The resource record '<product>-try-slc-staging' does not exist` during the AAT deploy | Benign, and the same shape as the row above. `AzPrivateDns.checkForCname` asks whether a CNAME already exists and swallows the failure (`AzPrivateDns.groovy:46-50`, `catch (e) { return false }`). `false` is the answer that makes `helmInstall.groovy:183` **register** the A record. Expected on a first deployment, and again after any product or host rename |
 | Any `az ... show` failure in a Jenkins log | Check before chasing it. The CNP library probes Azure with `show` commands and treats failure as "does not exist yet", so a first deployment prints several that look fatal and are not — Jenkins logs the step failure before Groovy catches it. The real failure is the **last** one, and normally says `FAILURE`, `Timeout`, `Aborted` or `Finished:` |
+| `pmd-analysis` red on a PR but `./gradlew build` green | PMD is not a Gradle task here — it runs only in the GitHub action, over `src/main/java` with `.github/pmd-ruleset.xml`. Checkstyle is what `build` runs. Reproduce with `pmd check --no-progress --no-cache -d src/main/java -f text -R .github/pmd-ruleset.xml`. The one that bites first is `CommentDefaultAccessModifier` on a package-private method: there is no `/* default */` convention anywhere in this repo or the live service, so make the method `private` and test through the public entry point instead |
 | Startup fails naming a stub file | That stub drifted from the contract, or `build.gradle` pinned a new contract version |
+| `bootRun` fails: *auth.key-source=ENTRA but AUTH_TENANT_ID is still the self-issued sandbox value* | The check working. Something set `AUTH_KEY_SOURCE=ENTRA` without the three identifiers — remove it (`SELF_ISSUED` is the default) or set all three of `AUTH_TENANT_ID`/`AUTH_AUDIENCE`/`AUTH_ISSUER` |
+| In `ENTRA`, every token answers 401 with `INVALID_CLAIMS` | Usually `aud`. A v2.0 token carries the resource's bare application id GUID, not `api://…`; startup logs a `SECURITY:` warning when `auth.audience` is not a GUID. Next most likely: the app registration is not on `requestedAccessTokenVersion: 2`, so Entra issued a v1 token with an `sts.windows.net` issuer |
+| In `ENTRA`, tokens verify but answer 403 | No `app.read` app role assigned to the calling application. `AuthorizationPolicy.KNOWN_ROLES` is the authority on the name — and it is `app.read` only, matching the live service. `web-api-marketplace` (`config/default.json:63`) grants that role on every application it registers, so a marketplace-issued consumer is fine; a hand-made registration carrying only `slc.read` is not |
+| In `ENTRA`, a token that decodes fine is still 401 `INVALID_CLAIMS` | Check `iss` before anything else. The `hmctsextsbox` tenant publishes **two** issuers: `https://login.microsoftonline.com/<tid>/v2.0` for `client_credentials`, and `https://<tid>.ciamlogin.com/<tid>/v2.0` for the CIAM user journeys `web-api-marketplace` signs people in through. `EntraTokenValidator` matches `iss` exactly, so they are not interchangeable — app-only callers must use `login.microsoftonline.com`. Do not add a second issuer to the validator; it is byte-identical to the live service's |
+| `/oauth2/v2.0/token` or `/.well-known/jwks.json` answers 404 | `auth.key-source=ENTRA`. Those endpoints do not exist in that realm — check `GET /scenarios` → `authentication.mode` |
+| Functional tests skip most of the suite | Expected in `ENTRA`: the demo-credential tests `assumeTrue(isSelfIssued())`. Skips keep the stage green, which matters because Jenkins' `junit` step has no `allowEmptyResults` here. Preview and AAT staging are `SELF_ISSUED` precisely so CI does not run in that mode — if a PR's functional stage is skipping, someone changed `values.preview.template.yaml`. **Known gap for sandbox:** nothing exercises the 200 path there — only the 404s and the forged-token 401. Closing it needs a functional test client registered in the issuing tenant with `app.read`, its id and secret mounted from the `amp-try-slc-sbox` vault |
 | Startup fails on `admin.auth.tenant-id` | The admin realm is half-configured. Set `ADMIN_DISABLED=true` locally, or supply a real tenant and audience. It fails closed on purpose |
 | `/admin/**` answers 503 | Admin realm disabled — not a bug, the configured state when no Entra app registration exists |
 | Ingest answers 400 naming a field | The contract gate working. Fix the spec or the capture, not the gate |
@@ -140,6 +200,16 @@ answers 400 naming the offending field. Recordings serve nothing until published
 - Remaining CNP onboarding steps are in `CNP-ONBOARDING-PLAN.md`. The two that block the recording
   pipeline are the Postgres Terraform module and the admin Entra app registration; until the latter
   exists, run with `ADMIN_DISABLED=true`.
+- **There are two charts, and only one of them is in this repo.** Jenkins deploys preview and the
+  ephemeral `amp-try-slc-staging` slot from `charts/amp-try-slc/`. Flux deploys **sandbox, AAT and
+  demo** from `stable/amp-try-slc` in **`hmcts-charts`** — a separately published copy — overlaid
+  with the `HelmRelease` patches in `cnp-flux-config/apps/amp/amp-try-slc/{sbox,aat,demo}.yaml`.
+  Editing `charts/amp-try-slc/values.yaml` therefore changes **nothing** in those three until the
+  chart is republished, and the published copy is currently 0.0.1 while this repo is at 0.0.3 — it
+  still carries `ADMIN_DISABLED`, removed here in PR #36. **Any environment variable the Flux-managed
+  environments must have goes in the `cnp-flux-config` patch**, which applies to whichever chart
+  version is live. This is the trap behind "I changed values.yaml and the pod still has the old
+  config".
 - **There are two Terraform directories and they must not be merged.** `infrastructure/` is the
   CNP one, run by Jenkins, holding the key vault, Postgres and the demo signing key.
   `apim/` registers the public contract with the SPS APIM instance and is run by GitHub Actions

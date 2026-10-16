@@ -7,6 +7,25 @@ authenticated to call, and all of it is public by design.
 There is no write side today. What the sandbox serves is the set of fixtures committed under
 `src/main/resources/stubs/`, seeded into its store at boot; changing it means a pull request.
 
+## Which realm you are in
+
+Two token realms, set per environment by `auth.key-source`. Ask the deployment rather than assuming:
+
+```bash
+curl -s $BASE/scenarios | jq .authentication
+```
+
+| `authentication.mode` | Where the token comes from | What exists |
+|---|---|---|
+| `self-issued` | `POST $BASE/oauth2/v2.0/token`, with the demo credentials below | token endpoint, `/.well-known/jwks.json` |
+| `entra` | `POST https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token`, with **your own** app registration | none of the above — they are removed from the service, not merely refused |
+
+Validation is the same code either way.
+
+**Every environment except sandbox runs `self-issued`**, demo included — the one the public
+catalogue points at — so the walkthrough below is what a consumer arriving from the catalogue
+follows. **Sandbox runs `entra`**; see [the Entra realm](#the-entra-realm) for that one.
+
 ## The journey
 
 ```mermaid
@@ -37,10 +56,14 @@ sequenceDiagram
   end
 ```
 
-`GET /scenarios` is unauthenticated and self-documenting — it lists the credentials, the case URNs
-and what each one demonstrates. It is the entry point; nothing else needs to be known in advance.
+`GET /scenarios` is unauthenticated and self-documenting — the case URNs, what each one
+demonstrates, and which realm is live. It does **not** return the demo credentials: it is read by
+consumers evaluating the live API who will be holding an Entra token of their own, and a client id
+and secret in that payload invites them to use the wrong one. They are below, and in the README.
 
-## Walkthrough
+## Walkthrough — self-issued realm
+
+Demo, local development, preview and AAT. Sandbox is `entra`; see below for that one.
 
 ```bash
 BASE=https://amp-try-slc.demo.platform.hmcts.net
@@ -78,7 +101,8 @@ into it.
 
 ## Demo credentials
 
-Both published deliberately; they authorise nothing beyond this sandbox.
+Both published deliberately; they authorise nothing beyond this sandbox. They live here and in the
+service README rather than in `GET /scenarios` — see above.
 
 | Client | `client_id` | Outcome |
 |---|---|---|
@@ -97,12 +121,87 @@ The auth code is copied from `service-cp-crime-scheduleandlist-courtschedule` an
 Tokens are verified for real: RS256 signature, exact `iss`/`tid`/`ver`/`aud`, `exp`/`nbf`,
 `sub == oid` app-only assertion, prohibited `scp`, and a non-empty `roles` claim.
 
-The single difference is the key source. `AppConfig` supplies an `ImmutableJWKSet` holding this
-service's own demo key instead of a `JWKSourceBuilder` fetching a tenant's JWKS over HTTPS. That is
-what lets it run with **no egress at all** — no CP network, no Entra.
+The single difference is the key source, and it is a configured one. `AppConfig` supplies either an
+`ImmutableJWKSet` holding this service's own demo key (`SELF_ISSUED`) or a `JWKSourceBuilder` fetching
+a tenant's JWKS over HTTPS (`ENTRA`). The first is what lets the sandbox run with **no egress at
+all** — no CP network, no Entra.
 
-Because this sandbox is its own issuer, **a demo token is worthless against any real API**: the
-`iss`, `aud` and `tid` are its own.
+In the self-issued realm this sandbox is its own issuer, so **a demo token is worthless against any
+real API**: the `iss`, `aud` and `tid` are its own.
+
+## The Entra realm
+
+**This is what sandbox runs**, against `hmctsextsbox` — the tenant the Marketplace registers
+consumer applications in, so these are credentials a developer can actually obtain. It is the only
+environment in this realm.
+
+```bash
+BASE=https://amp-try-slc.sandbox.platform.hmcts.net
+TENANT=d44f885c-4fac-47bf-afde-d7d861ec4d7b
+AUDIENCE=30288840-e345-4543-99ee-f9253d789339
+
+# 1. Get a token from Entra, with YOUR OWN app registration's credentials
+TOKEN=$(curl -s -X POST "https://login.microsoftonline.com/$TENANT/oauth2/v2.0/token" \
+  -d "client_id=$CLIENT_ID" \
+  --data-urlencode "client_secret=$CLIENT_SECRET" \
+  -d "scope=$AUDIENCE/.default" \
+  -d "grant_type=client_credentials" | jq -r .access_token)
+
+# 2. Call the API - identical to the self-issued realm from here on
+curl -s -H "Authorization: Bearer $TOKEN" $BASE/case/TIN-ALLOCATED-01/courtschedule
+```
+
+`--data-urlencode` on the secret, not `-d`: Entra secrets contain `~`, `.` and sometimes `+` or `=`,
+and an unencoded one is silently mangled into `AADSTS7000215: Invalid client secret provided`.
+
+**The `app.read` role is the one the Marketplace already grants**
+(`web-api-marketplace/config/default.json:63`), so an application registered through it works here
+unchanged.
+
+`AUTH_AUDIENCE` is `30288840…`: the shared `hmcts-api-marketplace` audience for every API in this
+tenant, and the one `api-cp-crime-schedulingandlisting-courtschedule`'s APIM `validate-jwt` policy
+pins here (`infrastructure/sbox.tfvars:14`). It is not a stand-in for a try-slc registration — it is
+the resource your token has to be *for*. The Marketplace grants `app.read` on that registration, so
+it is the only `scope=<resource>/.default` you can successfully request; a try-slc-specific audience
+would be one nobody can obtain a token for. The real API's audience is per-tenant too: `aat.tfvars`
+names `26b2922f…`, `prod.tfvars` `7d4eb263…`.
+
+### Configuring it
+
+`SELF_ISSUED` is the default. Set `AUTH_KEY_SOURCE=ENTRA` and the service verifies real Microsoft
+Entra app-only access tokens against the issuing tenant's published keys. Three variables come with
+it, and startup fails naming whichever is missing:
+
+| Variable | Value |
+|---|---|
+| `AUTH_TENANT_ID` | Directory (tenant) id of the tenant **issuing** the tokens — not the hosting tenant |
+| `AUTH_AUDIENCE` | This API's own application (client) id. A **bare GUID**: the validator pins `ver=2.0`, and a v2 token carries the GUID in `aud`, never `api://…` |
+| `AUTH_ISSUER` | `https://login.microsoftonline.com/<tenant-id>/v2.0`. **Not** the `ciamlogin.com` form — see below |
+
+What the app registration has to provide, because the validator imposes it:
+
+- **`requestedAccessTokenVersion: 2`** on the API registration. Without it Entra issues v1 tokens with
+  an `sts.windows.net` issuer, and the `ver`/`iss` checks reject every one.
+- **An app role named `app.read`**, assigned to each calling application. An app-only token with an
+  empty `roles` claim is refused **403 insufficient_scope**.
+- **Client credentials, not delegated.** A token carrying `scp` is refused — the validator asserts
+  app-only via prohibited `scp` and `sub == oid`.
+
+**Use `login.microsoftonline.com`, not `ciamlogin.com`.** An external-ID tenant publishes two
+issuers for the same directory: `https://login.microsoftonline.com/<tid>/v2.0` for
+`client_credentials`, and `https://<tid>.ciamlogin.com/<tid>/v2.0` for the CIAM user journeys the
+Marketplace web app signs people in through. `iss` is matched exactly, so a token from the second
+host is refused — which looks like a malformed token and is really the wrong endpoint. The
+`api-cp-*` APIM `validate-jwt` policy pins the same first form.
+
+Two consequences worth stating before flipping an environment:
+
+- **This becomes the only outbound call the service makes.** The pod needs egress to
+  `login.microsoftonline.com`. Keys are cached, rate-limited and outage-tolerant, so rotation is
+  absorbed without a redeploy, but a blocked egress path means no token verifies.
+- **Browser Try-it-out cannot work.** A `client_credentials` exchange against Entra from
+  `hmcts.github.io` is not something a browser can complete. In this realm the sandbox is a
+  curl-or-client story, not a click-in-the-catalogue one.
 
 ### Signing key
 

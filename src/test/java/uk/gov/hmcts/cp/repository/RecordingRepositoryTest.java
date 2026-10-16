@@ -26,7 +26,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 // The admin realm is off here deliberately: this class exercises the store, and an unconfigured
 // admin realm refuses to start the application rather than running unguarded. That refusal is the
 // behaviour we want in production, so it is left in place and switched off explicitly instead.
-@SpringBootTest(properties = "admin.auth.disabled=true")
+@SpringBootTest(properties = "auth.key-source=SELF_ISSUED")
 @Testcontainers
 class RecordingRepositoryTest {
 
