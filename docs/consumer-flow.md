@@ -7,6 +7,23 @@ authenticated to call, and all of it is public by design.
 There is no write side today. What the sandbox serves is the set of fixtures committed under
 `src/main/resources/stubs/`, seeded into its store at boot; changing it means a pull request.
 
+## Which realm you are in
+
+Two token realms, set per environment by `auth.key-source`. Ask the deployment rather than assuming:
+
+```bash
+curl -s $BASE/scenarios | jq .authentication
+```
+
+| `authentication.mode` | Where the token comes from | What exists |
+|---|---|---|
+| `self-issued` | `POST $BASE/oauth2/v2.0/token`, with the published demo credentials | token endpoint, `/.well-known/jwks.json`, `demoClients` in `/scenarios` |
+| `entra` | `POST https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token`, with **your own** app registration | none of the above — they are removed from the service, not merely refused |
+
+Validation is the same code either way. The rest of this page describes the self-issued realm, which
+is what local development and any environment without an app registration run; the
+[Entra realm](#the-entra-realm) section covers the other.
+
 ## The journey
 
 ```mermaid
@@ -97,12 +114,43 @@ The auth code is copied from `service-cp-crime-scheduleandlist-courtschedule` an
 Tokens are verified for real: RS256 signature, exact `iss`/`tid`/`ver`/`aud`, `exp`/`nbf`,
 `sub == oid` app-only assertion, prohibited `scp`, and a non-empty `roles` claim.
 
-The single difference is the key source. `AppConfig` supplies an `ImmutableJWKSet` holding this
-service's own demo key instead of a `JWKSourceBuilder` fetching a tenant's JWKS over HTTPS. That is
-what lets it run with **no egress at all** — no CP network, no Entra.
+The single difference is the key source, and it is a configured one. `AppConfig` supplies either an
+`ImmutableJWKSet` holding this service's own demo key (`SELF_ISSUED`) or a `JWKSourceBuilder` fetching
+a tenant's JWKS over HTTPS (`ENTRA`). The first is what lets the sandbox run with **no egress at
+all** — no CP network, no Entra.
 
-Because this sandbox is its own issuer, **a demo token is worthless against any real API**: the
-`iss`, `aud` and `tid` are its own.
+In the self-issued realm this sandbox is its own issuer, so **a demo token is worthless against any
+real API**: the `iss`, `aud` and `tid` are its own.
+
+## The Entra realm
+
+Set `AUTH_KEY_SOURCE=ENTRA` and the service verifies real Microsoft Entra app-only access tokens
+against the issuing tenant's published keys. Three variables come with it, and startup fails naming
+whichever is missing:
+
+| Variable | Value |
+|---|---|
+| `AUTH_TENANT_ID` | Directory (tenant) id of the tenant **issuing** the tokens — not the hosting tenant |
+| `AUTH_AUDIENCE` | This API's own application (client) id. A **bare GUID**: the validator pins `ver=2.0`, and a v2 token carries the GUID in `aud`, never `api://…` |
+| `AUTH_ISSUER` | `https://login.microsoftonline.com/<tenant-id>/v2.0` |
+
+What the app registration has to provide, because the validator imposes it:
+
+- **`requestedAccessTokenVersion: 2`** on the API registration. Without it Entra issues v1 tokens with
+  an `sts.windows.net` issuer, and the `ver`/`iss` checks reject every one.
+- **An app role named `app.read`**, assigned to each calling application. An app-only token with an
+  empty `roles` claim is refused **403 insufficient_scope**.
+- **Client credentials, not delegated.** A token carrying `scp` is refused — the validator asserts
+  app-only via prohibited `scp` and `sub == oid`.
+
+Two consequences worth stating before flipping an environment:
+
+- **This becomes the only outbound call the service makes.** The pod needs egress to
+  `login.microsoftonline.com`. Keys are cached, rate-limited and outage-tolerant, so rotation is
+  absorbed without a redeploy, but a blocked egress path means no token verifies.
+- **Browser Try-it-out cannot work.** A `client_credentials` exchange against Entra from
+  `hmcts.github.io` is not something a browser can complete. In this realm the sandbox is a
+  curl-or-client story, not a click-in-the-catalogue one.
 
 ### Signing key
 

@@ -1,5 +1,6 @@
 package uk.gov.hmcts.cp.demo;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import uk.gov.hmcts.cp.auth.AuthorizationPolicy;
 
@@ -17,6 +18,7 @@ import java.util.UUID;
  * wrong secret to the token endpoint covers 401 the same way.
  */
 @Service
+@ConditionalOnProperty(name = "auth.key-source", havingValue = "SELF_ISSUED")
 public class DemoClientRegistry {
 
     /**

@@ -25,7 +25,9 @@ uk.gov.hmcts.cp/
     AdminTokenValidator               Wraps an EntraTokenValidator - not a second bean of that type
     AuthMode, ValidatedCaller, TokenValidationException
   config/
-    AppConfig                         ImmutableJWKSet (NOT JWKSourceBuilder), validator, ClockService
+    TokenKeySource                    SELF_ISSUED | ENTRA - which realm, and therefore who issued the token
+    AuthKeySourceProperties           auth.key-source + the ENTRA startup check; NOT part of the copied set
+    AppConfig                         Picks ImmutableJWKSet or JWKSourceBuilder, validator, ClockService
     CorsConfig                        Allows the catalogue origin; Try-it-out is a browser fetch
   controllers/
     CourtScheduleController           Implements generated CourtScheduleApi; reads from ScenarioCatalog
@@ -77,11 +79,13 @@ uk.gov.hmcts.cp/
   `diff -r` against that repo is the check. `AuthorizationPolicy` (exempt paths),
   `ClientIdResolutionFilter` (CORS preflight) and `TracingFilter` (traceId generation) diverge
   deliberately, each documented in-file.
-- **Auth is real, not mocked.** `AUTH_MODE=ENFORCE`. The only change is the key *source*:
-  `ImmutableJWKSet` instead of a JWKS fetch. Never set `AUTH_MODE=OFF` — it would delete the
-  behaviour this service exists to demonstrate.
-- **Two auth realms, and they must not be confused.** The demo realm (self-issued, credentials
-  published in the catalogue) guards the public read API. The admin realm (`AdminAuthFilter`, real
+- **Auth is real, not mocked.** `AUTH_MODE=ENFORCE`. The only thing that varies is the key *source*,
+  via `auth.key-source` (`uk.gov.hmcts.cp.config.TokenKeySource`): `ImmutableJWKSet` over the demo key
+  (`SELF_ISSUED`) or a `JWKSourceBuilder` fetching the tenant's JWKS (`ENTRA`). Never set
+  `AUTH_MODE=OFF` — it would delete the behaviour this service exists to demonstrate.
+- **Two auth realms, and they must not be confused.** *(Not on master: the admin half was removed in
+  PR #36 and is restored by PR #37. Kept here because it applies the moment that lands.)* The demo
+  realm (self-issued, credentials published in the catalogue) guards the public read API. The admin realm (`AdminAuthFilter`, real
   corporate Entra) guards `/admin/**`. `AuthorizationPolicy.isExemptFromValidation` returns true for
   `/admin` — that does **not** mean public, it means the admin filter at a lower order already
   handled it. Removing `AdminAuthFilter` without removing that would leave ingest wide open.
@@ -94,8 +98,18 @@ uk.gov.hmcts.cp/
 - **Stubs go through the generated model.** `ScenarioCatalog` deserialises with
   `FAIL_ON_UNKNOWN_PROPERTIES`; responses are re-serialised from `CourtScheduleResponse`. Never serve
   raw JSON straight through — that is the one guarantee a WireMock/Prism deployment cannot make.
-- **Demo tokens must stay worthless elsewhere.** `iss`/`aud`/`tid` are this service's own. Never
-  point `auth.*` at a real Entra tenant.
+- **The key source and the minter must agree, and that is load-bearing.** `DemoTokenMinter` reads the
+  same `EntraAuthProperties` the validator does, so pointing `auth.*` at a real tenant while minting
+  is enabled would stamp Microsoft's issuer on a token signed with the demo key — a token nothing can
+  verify, advertised by `/scenarios` as the way in. So `auth.key-source=ENTRA` removes
+  `DemoSigningKey`, `DemoTokenMinter`, `DemoClientRegistry`, `DemoTokenController` and
+  `JwksController` from the context via `@ConditionalOnProperty`, and `AuthKeySourceProperties`
+  refuses to start if `auth.*` still holds the `demo.self-issued.*` values. Keep `demo.self-issued.*`
+  as the single source of those identifiers — it is what the startup check compares against. In
+  `SELF_ISSUED`, demo tokens stay worthless elsewhere because `iss`/`aud`/`tid` are this service's own.
+- **`ENTRA` is the default.** An environment nobody configured fails startup rather than accepting
+  tokens the service minted itself. Local development sets `AUTH_KEY_SOURCE=SELF_ISSUED` in `.env`;
+  the two `@SpringBootTest` classes set it as a test property.
 
 ## Adding a scenario
 
@@ -122,6 +136,11 @@ answers 400 naming the offending field. Recordings serve nothing until published
 | Jenkins logs `The resource record '<product>-try-slc-staging' does not exist` during the AAT deploy | Benign, and the same shape as the row above. `AzPrivateDns.checkForCname` asks whether a CNAME already exists and swallows the failure (`AzPrivateDns.groovy:46-50`, `catch (e) { return false }`). `false` is the answer that makes `helmInstall.groovy:183` **register** the A record. Expected on a first deployment, and again after any product or host rename |
 | Any `az ... show` failure in a Jenkins log | Check before chasing it. The CNP library probes Azure with `show` commands and treats failure as "does not exist yet", so a first deployment prints several that look fatal and are not — Jenkins logs the step failure before Groovy catches it. The real failure is the **last** one, and normally says `FAILURE`, `Timeout`, `Aborted` or `Finished:` |
 | Startup fails naming a stub file | That stub drifted from the contract, or `build.gradle` pinned a new contract version |
+| `bootRun` fails: *auth.key-source=ENTRA but AUTH_TENANT_ID is still the self-issued sandbox value* | The check working. `ENTRA` is the default; add `AUTH_KEY_SOURCE=SELF_ISSUED` to `.env`, or set all three of `AUTH_TENANT_ID`/`AUTH_AUDIENCE`/`AUTH_ISSUER` |
+| In `ENTRA`, every token answers 401 with `INVALID_CLAIMS` | Usually `aud`. A v2.0 token carries the resource's bare application id GUID, not `api://…`; startup logs a `SECURITY:` warning when `auth.audience` is not a GUID. Next most likely: the app registration is not on `requestedAccessTokenVersion: 2`, so Entra issued a v1 token with an `sts.windows.net` issuer |
+| In `ENTRA`, tokens verify but answer 403 | No `app.read` app role assigned to the calling application. `AuthorizationPolicy.KNOWN_ROLES` is the authority on the name |
+| `/oauth2/v2.0/token` or `/.well-known/jwks.json` answers 404 | `auth.key-source=ENTRA`. Those endpoints do not exist in that realm — check `GET /scenarios` → `authentication.mode` |
+| Functional tests skip most of the suite | Expected in `ENTRA`: the demo-credential tests `assumeTrue(isSelfIssued())`. Skips keep the stage green, which matters because Jenkins' `junit` step has no `allowEmptyResults` here |
 | Startup fails on `admin.auth.tenant-id` | The admin realm is half-configured. Set `ADMIN_DISABLED=true` locally, or supply a real tenant and audience. It fails closed on purpose |
 | `/admin/**` answers 503 | Admin realm disabled — not a bug, the configured state when no Entra app registration exists |
 | Ingest answers 400 naming a field | The contract gate working. Fix the spec or the capture, not the gate |

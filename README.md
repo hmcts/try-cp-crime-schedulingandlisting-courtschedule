@@ -58,9 +58,25 @@ The database is there because it is the store the service was built around, and 
 path is expected to come back — see [#37](https://github.com/hmcts/try-cp-crime-schedulingandlisting-courtschedule/pull/37).
 Today it holds exactly what the repository holds.
 
-**It makes no outbound call to anything.** It validates tokens against a key it holds in memory and
-answers from its own store, which is what lets it live in CNP with no CP connectivity and no route
-to the live estate. There is no CP-to-CNP peering, and `cnp-cp-integration` is an empty repo.
+**It makes no call to the Common Platform, ever.** It answers from its own store, which is what lets
+it live in CNP with no CP connectivity and no route to the live estate. There is no CP-to-CNP
+peering, and `cnp-cp-integration` is an empty repo.
+
+**Two token realms, set per environment** by `auth.key-source` — the same `EntraTokenValidator`
+either way, differing only in where the verification keys come from:
+
+| | `SELF_ISSUED` | `ENTRA` |
+|---|---|---|
+| Token issued by | this service, at `/oauth2/v2.0/token` | Microsoft Entra |
+| Keys | held in memory — no outbound call at all | the tenant's JWKS, fetched over HTTPS |
+| Demo credentials | published in `/scenarios` | none; the token and JWKS endpoints do not exist |
+| Needs | nothing | `AUTH_TENANT_ID`, `AUTH_AUDIENCE`, `AUTH_ISSUER`, and an app registration |
+
+`ENTRA` is the default, so an environment nobody configured fails closed at startup rather than
+accepting tokens this service minted itself. The realms are mutually exclusive by construction: in
+`ENTRA` the signing key, the minter and both demo endpoints leave the context, so the service cannot
+issue a token it would then have to reject. `GET /scenarios` reports which realm is live under
+`authentication.mode` — see [docs/consumer-flow.md](docs/consumer-flow.md).
 
 A consequence worth stating plainly: **everything this sandbox serves is in the repository.** If a
 case URN appears here, it was written into `stubs/scenarios.yaml` and reviewed in a pull request.
@@ -115,6 +131,7 @@ vault, mounted by Flux.
 
 | Variable | Default | What it does |
 |---|---|---|
+| `AUTH_KEY_SOURCE` | `ENTRA` | **Set this to `SELF_ISSUED` locally.** The default fails closed so an unconfigured deployed environment cannot accept self-minted tokens; locally you want the sandbox to mint its own |
 | `POSTGRES_HOST` | `localhost` | |
 | `POSTGRES_PORT` | `5432` | **Set this to 55432** — see above |
 | `POSTGRES_DATABASE` | `tryitnow` | |
@@ -132,6 +149,14 @@ vault, mounted by Flux.
 curl localhost:8080/scenarios
 curl localhost:8080/health
 ```
+
+If `bootRun` exits with
+
+```
+auth.key-source=ENTRA but AUTH_TENANT_ID is still the self-issued sandbox value
+```
+
+that is the check working, not a fault: `AUTH_KEY_SOURCE=SELF_ISSUED` is missing from your `.env`.
 
 `./gradlew build` needs Docker running — the store and the full ingest/publish journey are tested
 against a real Postgres via TestContainers, not an in-memory substitute.

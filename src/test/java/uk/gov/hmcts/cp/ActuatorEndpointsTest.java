@@ -33,7 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * {@code META-INF/build-info.properties}. Remove the {@code springBoot.buildInfo} block and
  * {@code /info} answers 200 with {@code {}} — healthy-looking and useless.
  */
-@SpringBootTest
+@SpringBootTest(properties = "auth.key-source=SELF_ISSUED")
 @Testcontainers
 class ActuatorEndpointsTest {
 

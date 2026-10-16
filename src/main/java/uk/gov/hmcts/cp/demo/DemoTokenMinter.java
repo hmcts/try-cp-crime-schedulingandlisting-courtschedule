@@ -7,6 +7,7 @@ import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import uk.gov.hmcts.cp.auth.EntraAuthProperties;
 import uk.gov.hmcts.cp.services.ClockService;
@@ -29,6 +30,7 @@ import java.util.UUID;
  * token verifies nowhere else.
  */
 @Service
+@ConditionalOnProperty(name = "auth.key-source", havingValue = "SELF_ISSUED")
 public class DemoTokenMinter {
 
     private static final String CLAIM_AZP = "azp";
