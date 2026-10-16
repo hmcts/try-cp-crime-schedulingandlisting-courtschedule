@@ -114,9 +114,15 @@ uk.gov.hmcts.cp/
   `30288840-…`, the `hmcts-api-marketplace` registration that defines `app.read`). Not a try-slc
   registration, and not `api-cp`'s `aat.tfvars`/`prod.tfvars` tenants: this is where
   `service-api-marketplace` and `web-api-marketplace` register a consumer's application and grant it
-  the role, so it is the only tenant whose tokens a developer can actually obtain. Sandbox, AAT and
-  the AAT staging slot all use it, and staging matches AAT on purpose — a different tenant there
-  would make the functional stage rehearse an environment that does not exist.
+  the role, so it is the only tenant whose tokens a developer can actually obtain. Sandbox and AAT
+  use it; nothing else does.
+- **Preview and the AAT staging slot are `SELF_ISSUED`, so CI can prove the 200 path.** Both exist
+  only to run the Jenkins test stages, and those stages hold no Entra client secret — against an
+  `ENTRA` deployment the functional suite can assert the forged-token 401 and nothing more, and that
+  401 is indistinguishable from a blocked JWKS fetch. Self-issued, it mints a token and walks the
+  whole journey. `ENTRA` is verified against sandbox, where a real marketplace registration exists.
+  Do not flip these two to `ENTRA` to "match sandbox": the realms are per-environment by design, and
+  the thing a pre-merge stage can actually verify is the demo journey.
 - **Demo is `SELF_ISSUED`, and that is a decision with a reason.** It keeps the published demo
   credentials working, which is what the public catalogue's Try-it-out needs: a browser cannot
   complete a `client_credentials` exchange against Entra, so an Entra demo has no browser journey.
@@ -156,7 +162,7 @@ answers 400 naming the offending field. Recordings serve nothing until published
 | In `ENTRA`, tokens verify but answer 403 | No `app.read` app role assigned to the calling application. `AuthorizationPolicy.KNOWN_ROLES` is the authority on the name — and it is `app.read` only, matching the live service. `web-api-marketplace` (`config/default.json:63`) grants that role on every application it registers, so a marketplace-issued consumer is fine; a hand-made registration carrying only `slc.read` is not |
 | In `ENTRA`, a token that decodes fine is still 401 `INVALID_CLAIMS` | Check `iss` before anything else. The `hmctsextsbox` tenant publishes **two** issuers: `https://login.microsoftonline.com/<tid>/v2.0` for `client_credentials`, and `https://<tid>.ciamlogin.com/<tid>/v2.0` for the CIAM user journeys `web-api-marketplace` signs people in through. `EntraTokenValidator` matches `iss` exactly, so they are not interchangeable — app-only callers must use `login.microsoftonline.com`. Do not add a second issuer to the validator; it is byte-identical to the live service's |
 | `/oauth2/v2.0/token` or `/.well-known/jwks.json` answers 404 | `auth.key-source=ENTRA`. Those endpoints do not exist in that realm — check `GET /scenarios` → `authentication.mode` |
-| Functional tests skip most of the suite | Expected in `ENTRA`: the demo-credential tests `assumeTrue(isSelfIssued())`. Skips keep the stage green, which matters because Jenkins' `junit` step has no `allowEmptyResults` here. **Known gap:** nothing then exercises the 200 path in that realm — only the 404s and the forged-token 401. Closing it needs a functional test client registered in the issuing tenant with `app.read`, its id and secret mounted from the `amp-try-slc-{env}` vault, so the suite can fetch a real token. Until that exists an `ENTRA` environment's functional stage is green by skipping |
+| Functional tests skip most of the suite | Expected in `ENTRA`: the demo-credential tests `assumeTrue(isSelfIssued())`. Skips keep the stage green, which matters because Jenkins' `junit` step has no `allowEmptyResults` here. Preview and AAT staging are `SELF_ISSUED` precisely so CI does not run in that mode — if a PR's functional stage is skipping, someone changed `values.preview.template.yaml`. **Known gap for sandbox and AAT:** nothing exercises the 200 path there — only the 404s and the forged-token 401. Closing it needs a functional test client registered in the issuing tenant with `app.read`, its id and secret mounted from the `amp-try-slc-{env}` vault |
 | Startup fails on `admin.auth.tenant-id` | The admin realm is half-configured. Set `ADMIN_DISABLED=true` locally, or supply a real tenant and audience. It fails closed on purpose |
 | `/admin/**` answers 503 | Admin realm disabled — not a bug, the configured state when no Entra app registration exists |
 | Ingest answers 400 naming a field | The contract gate working. Fix the spec or the capture, not the gate |

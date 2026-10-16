@@ -10,21 +10,17 @@ java:
     APPLICATIONINSIGHTS_ENABLED: "false"
     APPLICATIONINSIGHTS_CONNECTION_STRING: "InstrumentationKey=00000000-0000-0000-0000-000000000000"
     # Baseline realm for the environments Jenkins deploys from this chart - preview and the AAT
-    # staging slot - both of which override it to ENTRA in their template overlays.
+    # staging slot - and both overlays restate it rather than relying on it.
     #
     # It does NOT reach sandbox, AAT or demo. Flux deploys stable/amp-try-slc from hmcts-charts, a
     # separately published copy of this chart, overlaid with the HelmRelease patches in
     # cnp-flux-config/apps/amp/amp-try-slc/. Anything those three must have belongs in those
-    # patches, where it applies to whatever chart version is live - demo's ENTRA configuration
-    # against the PRODUCTION tenant included.
+    # patches, where it applies to whatever chart version is live.
     #
     # application.yaml defaults to ENTRA so that an environment nobody configured fails closed. This
     # line is the deliberate exception: without it, merging the key-source change would stop the
     # running demo deployment at startup rather than leaving it as it is. An environment added here
     # therefore inherits SELF_ISSUED silently - set it explicitly when you add one.
-    #
-    # Demo stays SELF_ISSUED by decision, not by omission: it is where the catalogue sends
-    # consumers, and a browser cannot complete a client_credentials exchange against Entra.
     AUTH_KEY_SOURCE: "SELF_ISSUED"
   # keyVaults are defined per-environment in the values.*.template.yaml overlays so sbox can use
   # amp-sbox without conflicting with the amp-{env} default.

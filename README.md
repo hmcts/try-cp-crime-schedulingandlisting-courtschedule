@@ -191,8 +191,8 @@ of this service and there is not meant to be one.
 
 | Environment | Host | Deployed by | Token realm |
 |---|---|---|---|
-| preview | `amp-try-slc-pr-{N}.preview.platform.hmcts.net` | Jenkins, **this repo's chart** | `ENTRA` (`d44f885c…`) |
-| AAT staging | `amp-try-slc-staging.aat.platform.hmcts.net` | Jenkins, **this repo's chart** | `ENTRA` (`d44f885c…`) |
+| preview | `amp-try-slc-pr-{N}.preview.platform.hmcts.net` | Jenkins, **this repo's chart** | `SELF_ISSUED` |
+| AAT staging | `amp-try-slc-staging.aat.platform.hmcts.net` | Jenkins, **this repo's chart** | `SELF_ISSUED` |
 | sandbox | `amp-try-slc.sandbox.platform.hmcts.net` | Flux | `ENTRA` (`d44f885c…`) |
 | AAT | `amp-try-slc.aat.platform.hmcts.net` | Flux | `ENTRA` (`d44f885c…`) |
 | **demo** | `amp-try-slc.demo.platform.hmcts.net` | Flux | `SELF_ISSUED` — **the live one**, deployed since 13 Oct 2026 |
@@ -212,9 +212,13 @@ tenant `service-api-marketplace` and `web-api-marketplace` both run against, so 
 consumer's application is registered and granted `app.read`. The credentials a developer is actually
 issued are therefore the ones these environments accept. The same pair is committed in
 `api-cp-crime-schedulingandlisting-courtschedule`'s `preview.tfvars` and pinned by that API's APIM
-`validate-jwt` policy. The AAT staging slot matches AAT deliberately: staging exists to rehearse
-AAT, and a different tenant there would make the functional stage prove something about an
-environment that does not exist.
+`validate-jwt` policy.
+
+**Preview and the AAT staging slot stay self-issued so CI can prove the 200 path.** Both exist to
+run the functional stage, and the stage has no Entra client secret to fetch a token with — against
+an `ENTRA` deployment it could only ever assert the 401, which is indistinguishable from a blocked
+JWKS fetch. Self-issued, it mints a token and exercises the whole journey. The `ENTRA` realm is
+verified against sandbox instead, where a real marketplace registration can be used.
 
 **Demo stays self-issued for now.** It keeps the published demo credentials working, which is what
 the public catalogue's Try-it-out needs — a browser cannot complete a `client_credentials` exchange

@@ -1,40 +1,13 @@
 # Don't modify this file, it is only needed for the pipeline to set the image and ingressHost
 java:
-  # Applies to the ephemeral amp-try-slc-staging slot Jenkins deploys for its test stages, NOT to
-  # amp-try-slc.aat.platform.hmcts.net - that one is Flux-managed from hmcts-charts plus
-  # cnp-flux-config/apps/amp/amp-try-slc/aat.yaml, and this file never reaches it.
+  # The ephemeral amp-try-slc-staging slot, not amp-try-slc.aat.platform.hmcts.net - that one is
+  # Flux-managed from hmcts-charts plus cnp-flux-config/apps/amp/amp-try-slc/aat.yaml, and this
+  # file never reaches it.
   #
-  # The values below deliberately match that patch. Staging exists to rehearse AAT; pointing it at a
-  # different tenant would make the functional stage prove something about an environment that does
-  # not exist.
-  #
-  # Real Entra tokens in this environment. The same three values the live API's APIM validate-jwt
-  # policy pins against the same tenant, taken from
-  # api-cp-crime-schedulingandlisting-courtschedule's infrastructure/preview.tfvars - identifiers,
-  # not secrets, which is why they are committed here exactly as they are there. This service needs
-  # no client secret at all: it verifies tokens, it never requests one.
-  #
-  # hmctsextsbox, because that is the tenant service-api-marketplace and web-api-marketplace both
-  # run against: it is where a consumer's application is registered and granted app.read, so these
-  # are the credentials a developer is actually issued.
-  #
-  # AUTH_AUDIENCE is the hmcts-api-marketplace registration, NOT a try-slc-specific one. A token
-  # minted for that API is therefore accepted here - the same posture api-cp's APIM policy takes,
-  # so this is consistent with the estate rather than a relaxation of it. Note that this differs
-  # from the EntraAuthProperties javadoc's "this API's own application id".
-  #
-  # AUTH_ISSUER must be the login.microsoftonline.com form. The same directory also answers on
-  # <tid>.ciamlogin.com with a DIFFERENT iss claim, which the validator matches exactly and would
-  # reject - see the debugging table in CLAUDE.md.
-  #
-  # Setting ENTRA removes the demo token endpoint, the demo JWKS and the published demo credentials
-  # from this environment. Callers need their own app registration carrying the app.read app role,
-  # which is what web-api-marketplace grants on every application it registers.
+  # Self-issued, so the functional stage can mint a token and exercise the 200 path. CI holds no
+  # Entra client secret, and an ENTRA staging slot could only ever prove the 401.
   environment:
-    AUTH_KEY_SOURCE: "ENTRA"
-    AUTH_TENANT_ID: "d44f885c-4fac-47bf-afde-d7d861ec4d7b"
-    AUTH_AUDIENCE: "30288840-e345-4543-99ee-f9253d789339"
-    AUTH_ISSUER: "https://login.microsoftonline.com/d44f885c-4fac-47bf-afde-d7d861ec4d7b/v2.0"
+    AUTH_KEY_SOURCE: "SELF_ISSUED"
   image: ${IMAGE_NAME}
   ingressHost: amp-try-slc-staging.aat.platform.hmcts.net
   keyVaults:
