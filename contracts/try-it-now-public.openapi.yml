@@ -14,7 +14,12 @@ info:
 
 
     Everything here is **unauthenticated**. `GET /scenarios` has to be readable before a consumer
-    holds a token, since it is where the credentials come from.
+    holds a token, since it is where the token realm, audience and issuer come from.
+
+
+    Two realms. `authentication.mode` says which one a deployment runs: `self-issued`, where this
+    service mints the tokens and the endpoints below exist, or `entra`, where it verifies real
+    Microsoft tokens and they do not.
   version: 1.0.0
   contact:
     email: no-reply@hmcts.net
@@ -37,8 +42,14 @@ paths:
     get:
       summary: What this sandbox serves, and how to call it
       description: >-
-        Self-documenting. Lists the case URNs that produce each outcome, the demo credentials to
-        use, and the source environment each example was captured from.
+        Self-documenting. Lists the case URNs that produce each outcome, the source environment
+        each example was captured from, and which token realm this deployment runs.
+
+
+        It does **not** return credentials. This response is read by consumers evaluating the live
+        API, most of whom hold an Entra token from their own registration, and a client id and
+        secret here would invite them to use the wrong one. The demo credentials for a
+        `self-issued` deployment are published in the service README.
 
 
         Unauthenticated by design — a consumer needs this before it can obtain a token.
@@ -63,6 +74,11 @@ paths:
         **The token is worthless anywhere else.** The sandbox signs it with its own key and the
         `iss`, `aud` and `tid` claims are its own identifiers, so it authenticates nothing against
         a real HMCTS API.
+
+
+        **Present in the `self-issued` realm only.** Where `authentication.mode` is `entra` this
+        endpoint does not exist and answers 404 — the service cannot issue a token it would then
+        have to reject. Check `GET /scenarios` first.
       operationId: issueDemoToken
       tags: [token]
       requestBody:
@@ -98,6 +114,10 @@ paths:
         The public half of the key the sandbox signs demo tokens with. Published so a consumer can
         verify a token the same way it would verify an Entra one. The private half never leaves the
         service.
+
+
+        **Present in the `self-issued` realm only**, and answers 404 otherwise — see the token
+        endpoint above.
       operationId: getJwks
       tags: [token]
       responses:
@@ -114,22 +134,15 @@ components:
     ScenariosResponse:
       type: object
       description: Everything a consumer needs to make a first successful call.
-      required: [description, howToCall, demoClients, scenarios]
+      required: [description, authentication, howToCall, scenarios]
       properties:
         description:
           type: string
           description: What this sandbox is, and what it is not.
+        authentication:
+          $ref: '#/components/schemas/Authentication'
         howToCall:
           $ref: '#/components/schemas/HowToCall'
-        demoClients:
-          type: array
-          description: >-
-            The credentials to call this sandbox with. **The secrets are published deliberately** —
-            they authenticate against this sandbox alone and are worthless elsewhere. Anything that
-            would be damaging if these were public does not belong behind them, which is why the
-            admin API is a separate contract guarded separately.
-          items:
-            $ref: '#/components/schemas/DemoClient'
         scenarios:
           type: array
           description: One entry per case URN this sandbox will answer for.
@@ -150,29 +163,45 @@ components:
           type: string
           description: Why the token is not an Entra token.
 
-    DemoClient:
+    Authentication:
       type: object
       description: >-
-        One set of demo credentials. More than one is offered on purpose, so a consumer can see a
-        genuine 403 as well as a 200 — the client without the required role is as much a scenario
-        as the one with it.
-      required: [client_id, client_secret, roles, description]
+        Which token realm this deployment runs, and where to get a token for it. Read this before
+        anything else: it is the only way to tell whether to ask this service for a token or ask
+        Microsoft Entra, and the two are mutually exclusive.
+      required: [mode, requiredRole, audience, issuer, tokenEndpoint]
       properties:
-        client_id:
+        mode:
           type: string
-          format: uuid
-          description: The demo client identifier.
-        client_secret:
+          enum: [self-issued, entra]
+          description: >-
+            `self-issued` — this service mints and verifies its own tokens, and the demo
+            credentials in the service README work. `entra` — it verifies real Microsoft Entra
+            app-only tokens, and you need your own app registration carrying the required role.
+        requiredRole:
           type: string
-          description: Published deliberately. Valid only against this sandbox.
-        roles:
-          type: array
-          description: Application roles this client's tokens will carry.
-          items:
-            type: string
-        description:
+          description: The application role a token must carry, or calls answer 403.
+        audience:
           type: string
-          description: What this client demonstrates.
+          description: The `aud` claim a token must carry.
+        issuer:
+          type: string
+          description: The exact `iss` claim a token must carry. Matched exactly, not by prefix.
+        tokenEndpoint:
+          type: string
+          description: >-
+            Where to get a token. A path on this service in the `self-issued` realm, an absolute
+            `login.microsoftonline.com` URL in the `entra` realm.
+        jwksEndpoint:
+          type: string
+          description: >-
+            Where this service publishes its verification key. Present in the `self-issued` realm
+            only — in `entra` the keys that matter are the tenant's.
+        scope:
+          type: string
+          description: >-
+            The `scope` to request, in `<audience>/.default` form. Present in the `entra` realm
+            only; `client_credentials` cannot request an individual scope.
 
     ScenarioSummary:
       type: object

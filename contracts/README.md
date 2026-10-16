@@ -12,8 +12,12 @@ A consumer therefore sees one catalogue entry made of **two** specs: the sandbox
 
 ## Everything in this spec is safe to publish
 
-The demo credentials are printed in `/scenarios`, so everything reachable with them has to be
-read-only. That holds trivially today: the service has no write surface at all.
+The demo credentials are published in the service README, so everything reachable with them has to
+be read-only. That holds trivially today: the service has no write surface at all.
+
+They are deliberately **not** in the `/scenarios` response. That response is read by consumers
+evaluating the live API, most of whom hold an Entra token from their own registration, and a client
+id and secret in it would invite them to use the wrong one.
 
 A write surface is expected to come back, and when it does it belongs in a spec of its own, behind
 its own ingress and its own control — never in this one. Putting both in one spec would mean one
