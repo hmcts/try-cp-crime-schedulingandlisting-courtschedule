@@ -132,7 +132,7 @@ whichever is missing:
 |---|---|
 | `AUTH_TENANT_ID` | Directory (tenant) id of the tenant **issuing** the tokens — not the hosting tenant |
 | `AUTH_AUDIENCE` | This API's own application (client) id. A **bare GUID**: the validator pins `ver=2.0`, and a v2 token carries the GUID in `aud`, never `api://…` |
-| `AUTH_ISSUER` | `https://login.microsoftonline.com/<tenant-id>/v2.0` |
+| `AUTH_ISSUER` | `https://login.microsoftonline.com/<tenant-id>/v2.0`. **Not** the `ciamlogin.com` form — see below |
 
 What the app registration has to provide, because the validator imposes it:
 
@@ -142,6 +142,13 @@ What the app registration has to provide, because the validator imposes it:
   empty `roles` claim is refused **403 insufficient_scope**.
 - **Client credentials, not delegated.** A token carrying `scp` is refused — the validator asserts
   app-only via prohibited `scp` and `sub == oid`.
+
+**Use `login.microsoftonline.com`, not `ciamlogin.com`.** An external-ID tenant publishes two
+issuers for the same directory: `https://login.microsoftonline.com/<tid>/v2.0` for
+`client_credentials`, and `https://<tid>.ciamlogin.com/<tid>/v2.0` for the CIAM user journeys the
+Marketplace web app signs people in through. `iss` is matched exactly, so a token from the second
+host is refused — which looks like a malformed token and is really the wrong endpoint. The
+`api-cp-*` APIM `validate-jwt` policy pins the same first form.
 
 Two consequences worth stating before flipping an environment:
 
