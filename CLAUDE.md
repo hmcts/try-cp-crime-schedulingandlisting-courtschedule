@@ -110,15 +110,20 @@ uk.gov.hmcts.cp/
 - **`ENTRA` is the default.** An environment nobody configured fails startup rather than accepting
   tokens the service minted itself. Local development sets `AUTH_KEY_SOURCE=SELF_ISSUED` in `.env`;
   the two `@SpringBootTest` classes set it as a test property.
-- **Demo validates PRODUCTION Entra tokens**, from `api-cp-…/infrastructure/prod.tfvars` —
-  tenant `0d0315f6-…`, audience `7d4eb263-…`. This is not an oversight to be corrected: the token a
-  consumer rehearses with on demo has to be the token they go live with, or the rehearsal proves
-  nothing. It means a token valid against the **production** Court Schedule API is also valid here,
-  which is safe in this direction only — the sandbox holds no CP data, cannot reach CP, and has no
-  write surface. The reverse must never become true. A corollary: **browser Try-it-out cannot reach
-  demo**, because a browser cannot complete a `client_credentials` exchange against Entra. Demo is a
-  curl-or-client story, and that follows from accepting real tokens rather than being a separate
-  decision.
+- **One tenant for every `ENTRA` environment: `hmctsextsbox`** (`d44f885c-…`, audience
+  `30288840-…`, the `hmcts-api-marketplace` registration that defines `app.read`). Not a try-slc
+  registration, and not `api-cp`'s `aat.tfvars`/`prod.tfvars` tenants: this is where
+  `service-api-marketplace` and `web-api-marketplace` register a consumer's application and grant it
+  the role, so it is the only tenant whose tokens a developer can actually obtain. Sandbox, AAT and
+  the AAT staging slot all use it, and staging matches AAT on purpose — a different tenant there
+  would make the functional stage rehearse an environment that does not exist.
+- **Demo is `SELF_ISSUED`, and that is a decision with a reason.** It keeps the published demo
+  credentials working, which is what the public catalogue's Try-it-out needs: a browser cannot
+  complete a `client_credentials` exchange against Entra, so an Entra demo has no browser journey.
+  Which tenant it should eventually validate against is unsettled. If it ever moves to the
+  production tenant, note the consequence — a token valid against the **production** Court Schedule
+  API becomes valid here, which is safe in this direction only (no CP data, no route to CP, no write
+  surface) and must never be made true in reverse.
 
 ## Adding a scenario
 

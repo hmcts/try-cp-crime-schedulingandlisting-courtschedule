@@ -22,10 +22,9 @@ curl -s $BASE/scenarios | jq .authentication
 
 Validation is the same code either way.
 
-**Demo — the environment the public catalogue points at — runs the `entra` realm against the
-production tenant.** So the walkthrough immediately below, which uses the published demo
-credentials, applies to **local development, sandbox and AAT**, not to demo. For demo, skip to
-[the Entra realm](#the-entra-realm).
+**Demo — the environment the public catalogue points at — runs `self-issued`**, so the walkthrough
+below is the one a consumer arriving from the catalogue follows. **Sandbox and AAT run `entra`**; see
+[the Entra realm](#the-entra-realm) for those.
 
 ## The journey
 
@@ -62,10 +61,10 @@ and what each one demonstrates. It is the entry point; nothing else needs to be 
 
 ## Walkthrough — self-issued realm
 
-Sandbox, AAT and local. **Not demo**, which is `entra`; see below for that.
+Demo and local development. Sandbox and AAT are `entra`; see below for those.
 
 ```bash
-BASE=https://amp-try-slc.sandbox.platform.hmcts.net
+BASE=https://amp-try-slc.demo.platform.hmcts.net
 
 # 1. Get a token (same client_credentials form post as Entra)
 TOKEN=$(curl -s -X POST $BASE/oauth2/v2.0/token \
@@ -129,13 +128,13 @@ real API**: the `iss`, `aud` and `tid` are its own.
 
 ## The Entra realm
 
-**This is what demo runs**, against the production tenant — so it is the realm a consumer coming from
-the public catalogue actually meets.
+**This is what sandbox and AAT run**, against `hmctsextsbox` — the tenant the Marketplace registers
+consumer applications in, so these are credentials a developer can actually obtain.
 
 ```bash
-BASE=https://amp-try-slc.demo.platform.hmcts.net
-TENANT=0d0315f6-3c04-4edb-ac37-b05f580cc122
-AUDIENCE=7d4eb263-0332-420a-8beb-a3cd5cc64b92
+BASE=https://amp-try-slc.sandbox.platform.hmcts.net
+TENANT=d44f885c-4fac-47bf-afde-d7d861ec4d7b
+AUDIENCE=30288840-e345-4543-99ee-f9253d789339
 
 # 1. Get a token from Entra, with YOUR OWN app registration's credentials
 TOKEN=$(curl -s -X POST "https://login.microsoftonline.com/$TENANT/oauth2/v2.0/token" \
@@ -151,10 +150,11 @@ curl -s -H "Authorization: Bearer $TOKEN" $BASE/case/TIN-ALLOCATED-01/courtsched
 `--data-urlencode` on the secret, not `-d`: Entra secrets contain `~`, `.` and sometimes `+` or `=`,
 and an unencoded one is silently mangled into `AADSTS7000215: Invalid client secret provided`.
 
-**The token demo accepts is the token the production API accepts.** Same tenant, same audience, same
-`app.read` role — which is the whole value of running the sandbox this way, because the credentials
-a consumer rehearses with are the ones they go live with. It is safe in this direction only: the
-sandbox holds no Common Platform data, cannot reach one, and has no write surface.
+**The `app.read` role is the one the Marketplace already grants**
+(`web-api-marketplace/config/default.json:63`), so an application registered through it works here
+unchanged. `AUTH_AUDIENCE` is the `hmcts-api-marketplace` registration rather than a try-slc-specific
+one, which is the same posture `api-cp-crime-schedulingandlisting-courtschedule`'s APIM
+`validate-jwt` policy takes against this tenant.
 
 ### Configuring it
 

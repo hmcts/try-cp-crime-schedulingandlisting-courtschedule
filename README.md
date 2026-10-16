@@ -192,10 +192,10 @@ of this service and there is not meant to be one.
 | Environment | Host | Deployed by | Token realm |
 |---|---|---|---|
 | preview | `amp-try-slc-pr-{N}.preview.platform.hmcts.net` | Jenkins, **this repo's chart** | `ENTRA` (`d44f885c…`) |
-| AAT staging | `amp-try-slc-staging.aat.platform.hmcts.net` | Jenkins, **this repo's chart** | `ENTRA` (`db827888…`) |
-| sandbox | `amp-try-slc.sandbox.platform.hmcts.net` | Flux | `SELF_ISSUED` |
-| AAT | `amp-try-slc.aat.platform.hmcts.net` | Flux | `SELF_ISSUED` |
-| **demo** | `amp-try-slc.demo.platform.hmcts.net` | Flux | **`ENTRA` (`0d0315f6…`) — the production tenant.** The live one, deployed since 13 Oct 2026 |
+| AAT staging | `amp-try-slc-staging.aat.platform.hmcts.net` | Jenkins, **this repo's chart** | `ENTRA` (`d44f885c…`) |
+| sandbox | `amp-try-slc.sandbox.platform.hmcts.net` | Flux | `ENTRA` (`d44f885c…`) |
+| AAT | `amp-try-slc.aat.platform.hmcts.net` | Flux | `ENTRA` (`d44f885c…`) |
+| **demo** | `amp-try-slc.demo.platform.hmcts.net` | Flux | `SELF_ISSUED` — **the live one**, deployed since 13 Oct 2026 |
 | production | — | — | **Deliberately none** |
 
 **Which chart deploys which environment is the thing to get right here.** Jenkins builds from
@@ -207,22 +207,20 @@ per-environment `HelmRelease` patches in `cnp-flux-config/apps/amp/amp-try-slc/{
 until that chart is republished. Set anything those three environments must have in the
 `cnp-flux-config` patches, where it applies whatever chart version is live.
 
-**Demo validates production Entra tokens, and that is the point of it.** A consumer evaluating the
-API gets an app registration in the production tenant and calls the real API with it; demo accepting
-exactly that token is what makes the sandbox a rehearsal rather than an approximation — the token
-they test with here is the token they ship with. The values are
-`api-cp-crime-schedulingandlisting-courtschedule`'s `prod.tfvars`, the same ones that API's
-production APIM `validate-jwt` policy pins. Preview and AAT staging use the `preview.tfvars` and
-`aat.tfvars` values for the same reason.
+**Every Entra environment uses `hmctsextsbox`** — `d44f885c…`, audience `30288840…`. That is the
+tenant `service-api-marketplace` and `web-api-marketplace` both run against, so it is where a
+consumer's application is registered and granted `app.read`. The credentials a developer is actually
+issued are therefore the ones these environments accept. The same pair is committed in
+`api-cp-crime-schedulingandlisting-courtschedule`'s `preview.tfvars` and pinned by that API's APIM
+`validate-jwt` policy. The AAT staging slot matches AAT deliberately: staging exists to rehearse
+AAT, and a different tenant there would make the functional stage prove something about an
+environment that does not exist.
 
-A consequence worth stating plainly: **a token valid against the production Court Schedule API is
-also valid here.** That is deliberate, and it is safe in this direction only — the sandbox holds no
-Common Platform data, has no route to one, and has no write surface. The reverse would not be: a
-demo-minted token has never been, and must never become, valid anywhere else.
-
-**Browser Try-it-out cannot work in this realm.** A `client_credentials` exchange against Entra is
-not something a browser can complete from `hmcts.github.io`, so demo is a curl-or-client story.
-That is a consequence of accepting real tokens, not a separate decision.
+**Demo stays self-issued for now.** It keeps the published demo credentials working, which is what
+the public catalogue's Try-it-out needs — a browser cannot complete a `client_credentials` exchange
+against Entra, so an Entra demo would have no browser journey at all. Which tenant it should
+eventually validate against is not settled; when it is, three variables in
+`cnp-flux-config/apps/amp/amp-try-slc/demo.yaml` replace one.
 
 **Every one of these currently needs the VPN**, demo included. They are records in Azure *private*
 DNS zones and no Front Door configuration exists for this service in `cnp-flux-config` — the demo
