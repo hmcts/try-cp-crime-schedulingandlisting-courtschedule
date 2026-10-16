@@ -110,6 +110,15 @@ uk.gov.hmcts.cp/
 - **`ENTRA` is the default.** An environment nobody configured fails startup rather than accepting
   tokens the service minted itself. Local development sets `AUTH_KEY_SOURCE=SELF_ISSUED` in `.env`;
   the two `@SpringBootTest` classes set it as a test property.
+- **Demo validates PRODUCTION Entra tokens**, from `api-cp-…/infrastructure/prod.tfvars` —
+  tenant `0d0315f6-…`, audience `7d4eb263-…`. This is not an oversight to be corrected: the token a
+  consumer rehearses with on demo has to be the token they go live with, or the rehearsal proves
+  nothing. It means a token valid against the **production** Court Schedule API is also valid here,
+  which is safe in this direction only — the sandbox holds no CP data, cannot reach CP, and has no
+  write surface. The reverse must never become true. A corollary: **browser Try-it-out cannot reach
+  demo**, because a browser cannot complete a `client_credentials` exchange against Entra. Demo is a
+  curl-or-client story, and that follows from accepting real tokens rather than being a separate
+  decision.
 
 ## Adding a scenario
 

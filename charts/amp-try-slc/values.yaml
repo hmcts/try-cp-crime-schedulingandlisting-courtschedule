@@ -15,7 +15,8 @@ java:
     # It does NOT reach sandbox, AAT or demo. Flux deploys stable/amp-try-slc from hmcts-charts, a
     # separately published copy of this chart, overlaid with the HelmRelease patches in
     # cnp-flux-config/apps/amp/amp-try-slc/. Anything those three must have belongs in those
-    # patches, where it applies to whatever chart version is live.
+    # patches, where it applies to whatever chart version is live - demo's ENTRA configuration
+    # against the PRODUCTION tenant included.
     #
     # application.yaml defaults to ENTRA so that an environment nobody configured fails closed. This
     # line is the deliberate exception: without it, merging the key-source change would stop the

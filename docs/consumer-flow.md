@@ -20,9 +20,12 @@ curl -s $BASE/scenarios | jq .authentication
 | `self-issued` | `POST $BASE/oauth2/v2.0/token`, with the published demo credentials | token endpoint, `/.well-known/jwks.json`, `demoClients` in `/scenarios` |
 | `entra` | `POST https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token`, with **your own** app registration | none of the above — they are removed from the service, not merely refused |
 
-Validation is the same code either way. The rest of this page describes the self-issued realm, which
-is what local development and any environment without an app registration run; the
-[Entra realm](#the-entra-realm) section covers the other.
+Validation is the same code either way.
+
+**Demo — the environment the public catalogue points at — runs the `entra` realm against the
+production tenant.** So the walkthrough immediately below, which uses the published demo
+credentials, applies to **local development, sandbox and AAT**, not to demo. For demo, skip to
+[the Entra realm](#the-entra-realm).
 
 ## The journey
 
@@ -57,10 +60,12 @@ sequenceDiagram
 `GET /scenarios` is unauthenticated and self-documenting — it lists the credentials, the case URNs
 and what each one demonstrates. It is the entry point; nothing else needs to be known in advance.
 
-## Walkthrough
+## Walkthrough — self-issued realm
+
+Sandbox, AAT and local. **Not demo**, which is `entra`; see below for that.
 
 ```bash
-BASE=https://amp-try-slc.demo.platform.hmcts.net
+BASE=https://amp-try-slc.sandbox.platform.hmcts.net
 
 # 1. Get a token (same client_credentials form post as Entra)
 TOKEN=$(curl -s -X POST $BASE/oauth2/v2.0/token \
@@ -123,6 +128,35 @@ In the self-issued realm this sandbox is its own issuer, so **a demo token is wo
 real API**: the `iss`, `aud` and `tid` are its own.
 
 ## The Entra realm
+
+**This is what demo runs**, against the production tenant — so it is the realm a consumer coming from
+the public catalogue actually meets.
+
+```bash
+BASE=https://amp-try-slc.demo.platform.hmcts.net
+TENANT=0d0315f6-3c04-4edb-ac37-b05f580cc122
+AUDIENCE=7d4eb263-0332-420a-8beb-a3cd5cc64b92
+
+# 1. Get a token from Entra, with YOUR OWN app registration's credentials
+TOKEN=$(curl -s -X POST "https://login.microsoftonline.com/$TENANT/oauth2/v2.0/token" \
+  -d "client_id=$CLIENT_ID" \
+  --data-urlencode "client_secret=$CLIENT_SECRET" \
+  -d "scope=$AUDIENCE/.default" \
+  -d "grant_type=client_credentials" | jq -r .access_token)
+
+# 2. Call the API - identical to the self-issued realm from here on
+curl -s -H "Authorization: Bearer $TOKEN" $BASE/case/TIN-ALLOCATED-01/courtschedule
+```
+
+`--data-urlencode` on the secret, not `-d`: Entra secrets contain `~`, `.` and sometimes `+` or `=`,
+and an unencoded one is silently mangled into `AADSTS7000215: Invalid client secret provided`.
+
+**The token demo accepts is the token the production API accepts.** Same tenant, same audience, same
+`app.read` role — which is the whole value of running the sandbox this way, because the credentials
+a consumer rehearses with are the ones they go live with. It is safe in this direction only: the
+sandbox holds no Common Platform data, cannot reach one, and has no write surface.
+
+### Configuring it
 
 Set `AUTH_KEY_SOURCE=ENTRA` and the service verifies real Microsoft Entra app-only access tokens
 against the issuing tenant's published keys. Three variables come with it, and startup fails naming
