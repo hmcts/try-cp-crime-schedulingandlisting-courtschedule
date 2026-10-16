@@ -158,12 +158,13 @@ and an unencoded one is silently mangled into `AADSTS7000215: Invalid client sec
 (`web-api-marketplace/config/default.json:63`), so an application registered through it works here
 unchanged.
 
-`AUTH_AUDIENCE` is `30288840…` because **that is the SLC API's own audience in this tenant** — the
-value `api-cp-crime-schedulingandlisting-courtschedule`'s APIM `validate-jwt` policy pins for
-`hmctsextsbox` (`infrastructure/sbox.tfvars:14`). It is not a stand-in for a try-slc registration.
-The audience is per-tenant for the real API too: `aat.tfvars` names `26b2922f…`, `prod.tfvars`
-`7d4eb263…`. A try-slc-specific audience would mean a registration nobody can get a token for, and
-a sandbox that rejects every credential the Marketplace issues.
+`AUTH_AUDIENCE` is `30288840…`: the shared `hmcts-api-marketplace` audience for every API in this
+tenant, and the one `api-cp-crime-schedulingandlisting-courtschedule`'s APIM `validate-jwt` policy
+pins here (`infrastructure/sbox.tfvars:14`). It is not a stand-in for a try-slc registration — it is
+the resource your token has to be *for*. The Marketplace grants `app.read` on that registration, so
+it is the only `scope=<resource>/.default` you can successfully request; a try-slc-specific audience
+would be one nobody can obtain a token for. The real API's audience is per-tenant too: `aat.tfvars`
+names `26b2922f…`, `prod.tfvars` `7d4eb263…`.
 
 ### Configuring it
 

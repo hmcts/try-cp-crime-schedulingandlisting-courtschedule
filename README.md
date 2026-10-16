@@ -242,12 +242,18 @@ until that chart is republished. Set anything those three environments must have
 `cnp-flux-config` patches, where it applies whatever chart version is live.
 
 **Sandbox is the only `ENTRA` environment, and it uses `hmctsextsbox`** — `d44f885c…`, audience
-`30288840…`, which is **the SLC API's own audience in that tenant**: the pair
-`api-cp-crime-schedulingandlisting-courtschedule` pins in `infrastructure/sbox.tfvars:13-14` and its
-APIM `validate-jwt` policy enforces. Not a substitute for a try-slc registration — the real API uses
-a different audience in each tenant too (`aat.tfvars` `26b2922f…`, `prod.tfvars` `7d4eb263…`), and
-matching sandbox's is the point: a consumer's credentials must behave here exactly as they do
-against the real API. That is the
+`30288840…`. That is the **shared `hmcts-api-marketplace` audience for every API in that tenant** —
+`api-cp-crime-defendant-details`'s `sbox.tfvars` pins the same GUID — and it is what the SLC API's
+own APIM `validate-jwt` policy pins there (`api-cp-crime-schedulingandlisting-courtschedule`,
+`infrastructure/sbox.tfvars:13-14`).
+
+So it is the correct value, and a try-slc-specific audience would be wrong rather than tidier. The
+`aud` of a `client_credentials` token is whatever the caller asked for with
+`scope=<resource>/.default`, and `web-api-marketplace` (`config/default.json:63`) grants `app.read`
+on `30288840…` — that is the only resource a Marketplace-registered consumer can request. Pinning
+anything else would reject every credential the Marketplace issues. The real API's audience is
+per-tenant too (`aat.tfvars` `26b2922f…`, `prod.tfvars` `7d4eb263…`); matching sandbox's is what
+makes a consumer's credentials behave here as they do against the real API. That is the
 tenant `service-api-marketplace` and `web-api-marketplace` both run against, so it is where a
 consumer's application is registered and granted `app.read`. The credentials a developer is actually
 issued are therefore the ones these environments accept. The same pair is committed in

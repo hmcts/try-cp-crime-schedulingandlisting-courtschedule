@@ -114,14 +114,15 @@ uk.gov.hmcts.cp/
   the other direction — `ENTRA` with the `demo.self-issued.*` identifiers still in place refuses to
   start.
 - **Sandbox is the only `ENTRA` environment, and it uses `hmctsextsbox`** (`d44f885c-…`, audience
-  `30288840-…`). That audience is **the SLC API's own**, not a stand-in for a try-slc registration:
-  it is what `api-cp-crime-schedulingandlisting-courtschedule` pins in `infrastructure/sbox.tfvars`
-  and enforces in its APIM `validate-jwt` policy for this tenant. The real API's audience is
-  per-tenant too (`aat.tfvars` `26b2922f-…`, `prod.tfvars` `7d4eb263-…`), so matching sandbox's is
-  what makes a consumer's credentials behave here as they do against the real API. Do not invent a
-  try-slc-specific audience: the token's `aud` is whatever the caller requested with
-  `scope=<resource>/.default`, and `web-api-marketplace` (`config/default.json:63`) grants roles on
-  `30288840-…` — a try-slc audience would be one nobody can obtain a token for.
+  `30288840-…`). That audience is the **shared `hmcts-api-marketplace` one for every API in the
+  tenant** — `api-cp-crime-defendant-details`'s `sbox.tfvars` pins the same GUID — and it is what
+  the SLC API's own APIM `validate-jwt` policy pins there (`api-cp`'s `infrastructure/sbox.tfvars`).
+  The real API's audience is per-tenant too (`aat.tfvars` `26b2922f-…`, `prod.tfvars` `7d4eb263-…`),
+  so matching sandbox's is what makes a consumer's credentials behave here as they do against the
+  real API. **Do not invent a try-slc-specific audience**, however much tidier it reads: the token's
+  `aud` is whatever the caller requested with `scope=<resource>/.default`, and `web-api-marketplace`
+  (`config/default.json:63`) grants `app.read` on `30288840-…`, so a try-slc audience would be one
+  no consumer can obtain a token for.
 - **`app.read` only, and that is not an oversight.** `api-cp`'s APIM policy accepts
   `["slc.read", "app.read"]` (`sbox.tfvars:24`, `match="any"`), but the live service behind it has
   `KNOWN_ROLES = Set.of("app.read")` — verified against
