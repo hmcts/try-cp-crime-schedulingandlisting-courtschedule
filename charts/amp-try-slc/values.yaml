@@ -9,9 +9,13 @@ java:
   environment:
     APPLICATIONINSIGHTS_ENABLED: "false"
     APPLICATIONINSIGHTS_CONNECTION_STRING: "InstrumentationKey=00000000-0000-0000-0000-000000000000"
-    # Baseline realm for any environment whose Entra configuration has not landed yet - today
-    # sandbox and demo, both of which take their environment from cnp-flux-config rather than from
-    # this chart. Preview and AAT override it to ENTRA in their template overlays below.
+    # Baseline realm for the environments Jenkins deploys from this chart - preview and the AAT
+    # staging slot - both of which override it to ENTRA in their template overlays.
+    #
+    # It does NOT reach sandbox, AAT or demo. Flux deploys stable/amp-try-slc from hmcts-charts, a
+    # separately published copy of this chart, overlaid with the HelmRelease patches in
+    # cnp-flux-config/apps/amp/amp-try-slc/. Anything those three must have belongs in those
+    # patches, where it applies to whatever chart version is live.
     #
     # application.yaml defaults to ENTRA so that an environment nobody configured fails closed. This
     # line is the deliberate exception: without it, merging the key-source change would stop the

@@ -160,6 +160,16 @@ answers 400 naming the offending field. Recordings serve nothing until published
 - Remaining CNP onboarding steps are in `CNP-ONBOARDING-PLAN.md`. The two that block the recording
   pipeline are the Postgres Terraform module and the admin Entra app registration; until the latter
   exists, run with `ADMIN_DISABLED=true`.
+- **There are two charts, and only one of them is in this repo.** Jenkins deploys preview and the
+  ephemeral `amp-try-slc-staging` slot from `charts/amp-try-slc/`. Flux deploys **sandbox, AAT and
+  demo** from `stable/amp-try-slc` in **`hmcts-charts`** — a separately published copy — overlaid
+  with the `HelmRelease` patches in `cnp-flux-config/apps/amp/amp-try-slc/{sbox,aat,demo}.yaml`.
+  Editing `charts/amp-try-slc/values.yaml` therefore changes **nothing** in those three until the
+  chart is republished, and the published copy is currently 0.0.1 while this repo is at 0.0.3 — it
+  still carries `ADMIN_DISABLED`, removed here in PR #36. **Any environment variable the Flux-managed
+  environments must have goes in the `cnp-flux-config` patch**, which applies to whichever chart
+  version is live. This is the trap behind "I changed values.yaml and the pod still has the old
+  config".
 - **There are two Terraform directories and they must not be merged.** `infrastructure/` is the
   CNP one, run by Jenkins, holding the key vault, Postgres and the demo signing key.
   `apim/` registers the public contract with the SPS APIM instance and is run by GitHub Actions

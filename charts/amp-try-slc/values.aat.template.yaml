@@ -1,5 +1,9 @@
 # Don't modify this file, it is only needed for the pipeline to set the image and ingressHost
 java:
+  # Applies to the ephemeral amp-try-slc-staging slot Jenkins deploys for its test stages, NOT to
+  # amp-try-slc.aat.platform.hmcts.net - that one is Flux-managed from hmcts-charts plus
+  # cnp-flux-config/apps/amp/amp-try-slc/aat.yaml, and this file never reaches it.
+  #
   # Real Entra tokens in this environment. The same three values the live API's APIM validate-jwt
   # policy pins, taken from api-cp-crime-schedulingandlisting-courtschedule's
   # infrastructure/aat.tfvars - identifiers,
