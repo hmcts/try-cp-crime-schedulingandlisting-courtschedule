@@ -62,11 +62,12 @@ public class AuthKeySourceProperties {
      * Refuses to start when {@code auth.key-source=ENTRA} but {@code auth.*} still describes this
      * service's own invented issuer.
      *
-     * <p>Static and package-visible so it can be exercised without a Spring context.
+     * <p>Reached through the constructor, which is what the tests exercise — a bean that cannot be
+     * built is the behaviour being asserted, not this method in isolation.
      *
      * @throws IllegalStateException naming the environment variable that must be set
      */
-    static void assertEntraConfigured(final EntraAuthProperties auth,
+    private static void assertEntraConfigured(final EntraAuthProperties auth,
                                       final String selfIssuedTenantId,
                                       final String selfIssuedAudience,
                                       final String selfIssuedIssuer) {

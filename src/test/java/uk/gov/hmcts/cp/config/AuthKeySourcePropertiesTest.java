@@ -84,10 +84,14 @@ class AuthKeySourcePropertiesTest {
                 .doesNotThrowAnyException();
     }
 
+    /**
+     * Builds the bean the way Spring would. The check runs in the constructor, so "refuses to start"
+     * and "throws" are the same assertion.
+     */
     private static void assertEntraConfigured(final String tenantId, final String audience,
                                               final String issuer, final String jwksUri) {
-        AuthKeySourceProperties.assertEntraConfigured(
-                properties(tenantId, audience, issuer, jwksUri), SELF_TENANT, SELF_AUDIENCE, SELF_ISSUER);
+        new AuthKeySourceProperties(TokenKeySource.ENTRA, SELF_TENANT, SELF_AUDIENCE, SELF_ISSUER,
+                properties(tenantId, audience, issuer, jwksUri));
     }
 
     private static EntraAuthProperties properties(final String tenantId, final String audience,
