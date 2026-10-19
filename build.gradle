@@ -188,7 +188,7 @@ dependencies {
 
   // Mints the demo access tokens AND verifies them. Same library the real service uses, so the
   // copied EntraTokenValidator is byte-identical to service-cp-crime-scheduleandlist-courtschedule.
-  implementation "com.nimbusds:nimbus-jose-jwt:10.9.1"
+  implementation "com.nimbusds:nimbus-jose-jwt:10.10"
 
   // Recording store. The sandbox holds recorded examples rather than only committed fixtures -
   // see the Recording pipeline section of the README.
