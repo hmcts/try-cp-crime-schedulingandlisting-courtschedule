@@ -27,8 +27,8 @@ apis = {
     # and guarded by verifySlcContract, so what APIM publishes is the spec this service implements.
     merge_spec_path = "../contracts/slc-courtschedule.openapi.yml"
 
-    display_name      = "Try It Now — Crime Scheduling and Listing Court Schedule"
-    path              = "amp/try/slc"
+    display_name = "Try It Now — Crime Scheduling and Listing Court Schedule"
+    path         = "amp/try/slc"
 
     # The CNP sandbox deployment, from apps/amp/amp-try-slc/sbox.yaml in cnp-flux-config.
     service_url = "https://amp-try-slc.sandbox.platform.hmcts.net"
