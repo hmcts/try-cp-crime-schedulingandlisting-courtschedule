@@ -137,21 +137,9 @@ dependencyCheck {
   suppressionFile = 'config/owasp/suppressions.xml'
 }
 
-repositories {
-  mavenLocal()
-  // A Maven Central mirror, asked before Central itself. Every artifact here is also on Central;
-  // the point is to stop a CI agent on a shared egress IP from being rate-limited (429) by
-  // repo.maven.apache.org. mavenCentral() stays as the fallback, so losing the mirror costs
-  // nothing but the rate limit.
-  maven {
-    name = 'mavenCentralMirror'
-    url = uri('https://maven-central.storage-download.googleapis.com/maven2')
-  }
-  mavenCentral()
-  maven {
-    url = uri('https://pkgs.dev.azure.com/hmcts/Artifacts/_packaging/hmcts-lib/maven/v1')
-  }
-}
+// Repositories are declared in settings.gradle, under dependencyResolutionManagement.
+// They cannot live here: Gradle's default PREFER_PROJECT mode would make a block in this
+// file win over that one, and CI would go back to resolving from Maven Central.
 
 ext['snakeyaml.version'] = '2.0'
 // 28/06/2026 temp fix for tomcat CVE-2026-65182 pending spring boot catchup
