@@ -81,6 +81,6 @@ class ActuatorEndpointsTest {
                 .andExpect(jsonPath("$.build.name").exists())
                 .andExpect(jsonPath("$.build.version").exists())
                 .andExpect(jsonPath("$.build.time").exists())
-                .andExpect(jsonPath("$.build.group").value("uk.gov.hmcts.cp"));
+                .andExpect(jsonPath("$.build.group").value("uk.gov.hmcts.amp"));
     }
 }
