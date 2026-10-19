@@ -15,11 +15,17 @@
 // Artifactory unconditionally therefore breaks every off-VPN laptop build, which is a worse problem
 // than the one being fixed. So it is added only on a build agent.
 //
-// CI covers GitHub Actions; BUILD_NUMBER covers CNP Jenkins, which does not reliably set CI. If
-// neither is present the build degrades to exactly today's behaviour rather than failing.
+// CNP Jenkins only, and the distinction matters. GitHub Actions sets CI=true, but its hosted
+// runners are on the public internet and cannot reach artifactory.platform.hmcts.net - keying off
+// CI therefore broke CodeQL on this very PR, aborting resolution exactly as an off-VPN laptop
+// does. GitHub Actions does not need Artifactory anyway: its runners have their own egress and
+// are not behind the rate-limited CNP IP.
+//
+// JENKINS_URL and BUILD_NUMBER are both set by Jenkins and by neither GitHub Actions nor a laptop.
+// If neither is present the build degrades to today's behaviour rather than failing.
 pluginManagement {
   repositories {
-    if (System.getenv('CI') != null || System.getenv('BUILD_NUMBER') != null) {
+    if (System.getenv('JENKINS_URL') != null || System.getenv('BUILD_NUMBER') != null) {
       maven {
         name = 'HMCTSArtifactory'
         url = uri('https://artifactory.platform.hmcts.net/artifactory/maven-remotes')
@@ -40,7 +46,7 @@ pluginManagement {
 // would make this section dead config.
 dependencyResolutionManagement {
   repositories {
-    if (System.getenv('CI') != null || System.getenv('BUILD_NUMBER') != null) {
+    if (System.getenv('JENKINS_URL') != null || System.getenv('BUILD_NUMBER') != null) {
       maven {
         name = 'HMCTSArtifactory'
         url = uri('https://artifactory.platform.hmcts.net/artifactory/maven-remotes')
@@ -58,7 +64,7 @@ dependencyResolutionManagement {
     // Local development only - a laptop cannot reach Artifactory off the VPN, and mavenLocal keeps
     // a locally published api-cp snapshot usable. Excluded on an agent so Central is not reached
     // there at all.
-    if (System.getenv('CI') == null && System.getenv('BUILD_NUMBER') == null) {
+    if (System.getenv('JENKINS_URL') == null && System.getenv('BUILD_NUMBER') == null) {
       mavenLocal()
       mavenCentral()
     }
