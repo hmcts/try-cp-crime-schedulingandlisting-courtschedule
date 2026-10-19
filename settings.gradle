@@ -1,1 +1,21 @@
+// Must be the first statement in this file - Gradle rejects the build otherwise.
+//
+// Plugin resolution goes to a Maven Central mirror FIRST, and only then to the Gradle Plugin
+// Portal. The order is the whole point: Gradle tries repositories in sequence per module, and
+// plugins.gradle.org/m2 answers 303 and redirects to repo.maven.apache.org for everything it does
+// not host itself - which is how the buildscript classpath ends up rate-limited (429) on a shared
+// CI egress IP. Asking the mirror first means Central is never reached for those artifacts.
+//
+// The portal stays, and is still required: it is the only source of the plugin markers for
+// org.sonarqube, uk.gov.hmcts.java and org.openapi.generator, none of which are on Central.
+pluginManagement {
+  repositories {
+    maven {
+      name = 'mavenCentralMirror'
+      url = uri('https://maven-central.storage-download.googleapis.com/maven2')
+    }
+    gradlePluginPortal()
+  }
+}
+
 rootProject.name = 'try-cp-crime-schedulingandlisting-courtschedule'
