@@ -39,10 +39,11 @@ concurrency:
   group: terraform-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
+# Read-only at workflow level. The two write scopes live on the jobs that actually need them:
+# id-token for the OIDC federation to Azure, pull-requests to post the plan as a PR comment.
+# Sonar flags workflow-level writes (githubactions:S8233) because every job inherits them.
 permissions:
-  id-token: write
   contents: read
-  pull-requests: write
 
 jobs:
   precheck:
@@ -135,6 +136,10 @@ jobs:
           echo "apply_prod=$apply_prod" >> "$GITHUB_OUTPUT"
 
   terraform:
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: write
     name: Terraform ${{ matrix.environment }}
     needs: [ discover-environments ]
     if: ${{ needs['discover-environments'].outputs.has_envs == 'true' && (
@@ -182,6 +187,10 @@ jobs:
       - run: echo "aat apply approved by ${{ github.actor }}"
 
   terraform-aat:
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: write
     name: Terraform aat
     needs: [ approve-aat ]
     uses: hmcts/cnp-githubactions-library/.github/workflows/terraform-deploy-openId.yaml@main
