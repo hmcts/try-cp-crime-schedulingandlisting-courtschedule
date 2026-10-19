@@ -14,7 +14,17 @@ plugins {
 
 application {
   mainClass = 'uk.gov.hmcts.cp.Application'
-  group = 'uk.gov.hmcts.cp'
+  // The product is amp, so the coordinate is too. Nothing here is published - there is no
+  // maven-publish plugin - so this is identifying metadata, not a release coordinate.
+  //
+  // Deliberately NOT changed with it:
+  //   * mainClass and the Java packages, which stay uk.gov.hmcts.cp. The auth package is a
+  //     byte-identical copy of service-cp-crime-scheduleandlist-courtschedule's and `diff -r` is
+  //     the check, so a package rename would fork it.
+  //   * sonar.projectKey below, which is a SonarCloud project identity. Changing it orphans the
+  //     existing project and loses its history.
+  //   * the api-cp dependency's own group, which belongs to that artefact.
+  group = 'uk.gov.hmcts.amp'
   version = '0.0.1'
 }
 
@@ -137,13 +147,9 @@ dependencyCheck {
   suppressionFile = 'config/owasp/suppressions.xml'
 }
 
-repositories {
-  mavenLocal()
-  mavenCentral()
-  maven {
-    url = uri('https://pkgs.dev.azure.com/hmcts/Artifacts/_packaging/hmcts-lib/maven/v1')
-  }
-}
+// Repositories are declared in settings.gradle, under dependencyResolutionManagement.
+// They cannot live here: Gradle's default PREFER_PROJECT mode would make a block in this
+// file win over that one, and CI would go back to resolving from Maven Central.
 
 ext['snakeyaml.version'] = '2.0'
 // 28/06/2026 temp fix for tomcat CVE-2026-65182 pending spring boot catchup

@@ -1,1 +1,74 @@
+// Must be the first statement in this file - Gradle rejects the build otherwise.
+//
+// Why this file exists: the CNP agents' shared egress IP is rate-limited by Maven Central, and the
+// artifacts that fail are the BUILDSCRIPT classpath, which no repositories block in build.gradle
+// has ever governed. Gradle resolves plugins through plugins.gradle.org/m2, and the portal answers
+// 303 and redirects to repo.maven.apache.org for everything it does not host itself - measured:
+// 303 for spring-boot-gradle-plugin, spring-boot-buildpack-platform, spring-core and
+// commons-compress. That redirect is the path to the 429.
+//
+// HMCTS Artifactory proxies Central and is the platform's answer to this. It is reachable from the
+// CNP agents and over the VPN, NOT from the open internet.
+//
+// That last point drives the shape below. Gradle does not fall through to the next repository when
+// one is UNREACHABLE - a 404 moves on, a DNS failure aborts resolution outright. Listing
+// Artifactory unconditionally therefore breaks every off-VPN laptop build, which is a worse problem
+// than the one being fixed. So it is added only on a build agent.
+//
+// CNP Jenkins only, and the distinction matters. GitHub Actions sets CI=true, but its hosted
+// runners are on the public internet and cannot reach artifactory.platform.hmcts.net - keying off
+// CI therefore broke CodeQL on this very PR, aborting resolution exactly as an off-VPN laptop
+// does. GitHub Actions does not need Artifactory anyway: its runners have their own egress and
+// are not behind the rate-limited CNP IP.
+//
+// JENKINS_URL and BUILD_NUMBER are both set by Jenkins and by neither GitHub Actions nor a laptop.
+// If neither is present the build degrades to today's behaviour rather than failing.
+pluginManagement {
+  repositories {
+    if (System.getenv('JENKINS_URL') != null || System.getenv('BUILD_NUMBER') != null) {
+      maven {
+        name = 'HMCTSArtifactory'
+        url = uri('https://artifactory.platform.hmcts.net/artifactory/maven-remotes')
+      }
+    }
+    maven {
+      name = 'HMCTSAzureArtifacts'
+      url = uri('https://pkgs.dev.azure.com/hmcts/Artifacts/_packaging/hmcts-lib/maven/v1')
+    }
+    // Last, and still required: the only source of the markers for org.sonarqube and
+    // org.openapi.generator, neither of which is published to Central.
+    gradlePluginPortal()
+  }
+}
+
+// Replaces the repositories block that used to live in build.gradle. It has to move here: with
+// Gradle's default PREFER_PROJECT mode a project-level block wins outright, so leaving it there
+// would make this section dead config.
+dependencyResolutionManagement {
+  repositories {
+    if (System.getenv('JENKINS_URL') != null || System.getenv('BUILD_NUMBER') != null) {
+      maven {
+        name = 'HMCTSArtifactory'
+        url = uri('https://artifactory.platform.hmcts.net/artifactory/maven-remotes')
+      }
+    }
+
+    // Not content-filtered. The sanctioned example restricts this feed to com.github.hmcts, but
+    // this service pulls uk.gov.hmcts.cp (the api-cp contract jar) from it, and a filter that is
+    // too narrow fails as "artifact not found" rather than as a misconfigured repository.
+    maven {
+      name = 'HMCTSAzureArtifacts'
+      url = uri('https://pkgs.dev.azure.com/hmcts/Artifacts/_packaging/hmcts-lib/maven/v1')
+    }
+
+    // Local development only - a laptop cannot reach Artifactory off the VPN, and mavenLocal keeps
+    // a locally published api-cp snapshot usable. Excluded on an agent so Central is not reached
+    // there at all.
+    if (System.getenv('JENKINS_URL') == null && System.getenv('BUILD_NUMBER') == null) {
+      mavenLocal()
+      mavenCentral()
+    }
+  }
+}
+
 rootProject.name = 'try-cp-crime-schedulingandlisting-courtschedule'
