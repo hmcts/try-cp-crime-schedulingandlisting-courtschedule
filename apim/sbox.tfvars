@@ -17,8 +17,18 @@ apim_product = {
 apis = {
   public = {
     openapi_spec_path = "../contracts/try-it-now-public.openapi.yml"
-    display_name      = "Try It Now — public API (Crime Scheduling and Listing)"
-    path              = "amp/try/slc"
+
+    # Only /scenarios from the sandbox contract. The demo token endpoint and the demo JWKS are the
+    # self-issued surface and do not exist where auth.key-source is ENTRA, which is what sandbox
+    # runs - publishing them would document a 404.
+    expose_paths = ["/scenarios"]
+
+    # The API being demonstrated. Vendored from the pinned api-cp jar by ./gradlew syncSlcContract
+    # and guarded by verifySlcContract, so what APIM publishes is the spec this service implements.
+    merge_spec_path = "../contracts/slc-courtschedule.openapi.yml"
+
+    display_name = "Try It Now — Crime Scheduling and Listing Court Schedule"
+    path         = "amp/try/slc"
 
     # The CNP sandbox deployment, from apps/amp/amp-try-slc/sbox.yaml in cnp-flux-config.
     service_url = "https://amp-try-slc.sandbox.platform.hmcts.net"

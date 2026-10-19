@@ -27,8 +27,32 @@ Two directories, two states, two pipelines. `apim/` is driven only by
 | Resource | Detail |
 |---|---|
 | APIM Product | `try-it-now-cp-crime-schedulingandlisting` |
-| APIM API | `public` — from `../contracts/try-it-now-public.openapi.yml`, at path `amp/try/slc` |
+| APIM API | `public` — at path `amp/try/slc`, built from **two** specs (below) |
 | API policy | Rate limit, quota, concurrency. **No `validate-jwt`** — see `policies/api-policy.xml` |
+
+## What APIM publishes, and why it is not one whole spec
+
+Two operations, assembled from two contracts:
+
+| Operation | From |
+|---|---|
+| `GET /scenarios` | `contracts/try-it-now-public.openapi.yml` |
+| `GET /case/{case_urn}/courtschedule` | `contracts/slc-courtschedule.openapi.yml` |
+
+`expose_paths` in the tfvars limits the sandbox contract to `/scenarios`. **`POST /oauth2/v2.0/token`
+and `GET /.well-known/jwks.json` are deliberately not published**: they are the self-issued surface
+and do not exist at all where `auth.key-source=ENTRA`, which is what sandbox runs, so publishing
+them would document a 404. A consumer reaching this through APIM gets its token from Entra.
+
+`merge_spec_path` brings in the API actually being demonstrated, so a consumer sees one API with
+the discovery endpoint and the real shape together rather than two half-APIs. The merge is paths
+plus `components.schemas`; the two specs' schema names were checked and do not overlap.
+
+`contracts/slc-courtschedule.openapi.yml` is **generated, not hand-maintained** — `./gradlew
+syncSlcContract` copies it out of the pinned `api-cp` jar, and `verifySlcContract` runs as part of
+`check`, so a drifted copy fails the build instead of reaching APIM. It is the same spec the
+generated `CourtScheduleApi` comes from, so what APIM publishes and what the service implements
+cannot disagree. Bump the dependency, run the sync, commit the result.
 
 The OpenAPI spec is the source of truth: display name, operations and schemas all come from it.
 

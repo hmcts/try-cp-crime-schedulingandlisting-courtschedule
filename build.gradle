@@ -256,6 +256,55 @@ bootJar {
   }
 }
 
+// The SLC contract, vendored for APIM.
+//
+// apim/ registers this service in APIM from OpenAPI documents on disk, and Terraform cannot read a
+// jar - so the api-cp spec has to exist as a file. It is NOT hand-maintained: syncSlcContract
+// copies it straight out of the pinned api-cp artefact, and verifySlcContract runs as part of
+// `check` so a drifted copy fails the build rather than reaching APIM. Bump the dependency, run
+// ./gradlew syncSlcContract, commit the result.
+//
+// This is the same spec the generated CourtScheduleApi comes from, so what APIM publishes and what
+// the service implements cannot disagree.
+def apiCpSpecEntry = 'openapi/openapi-spec.yml'
+def vendoredSlcContract = layout.projectDirectory.file('contracts/slc-courtschedule.openapi.yml')
+
+def apiCpSpecText = {
+  def jar = configurations.runtimeClasspath.find {
+    it.name.startsWith('api-cp-crime-schedulingandlisting-courtschedule')
+  }
+  if (jar == null) {
+    throw new GradleException('The api-cp contract jar is not on the runtime classpath.')
+  }
+  zipTree(jar).matching { include apiCpSpecEntry }.singleFile.text
+}
+
+tasks.register('syncSlcContract') {
+  group = 'documentation'
+  description = 'Copies the SLC OpenAPI spec out of the pinned api-cp jar into contracts/.'
+  doLast {
+    vendoredSlcContract.asFile.text = apiCpSpecText()
+    logger.lifecycle("Wrote ${vendoredSlcContract.asFile}")
+  }
+}
+
+tasks.register('verifySlcContract') {
+  group = 'verification'
+  description = 'Fails if the vendored SLC contract has drifted from the pinned api-cp jar.'
+  doLast {
+    def expected = apiCpSpecText()
+    def actual = vendoredSlcContract.asFile.exists() ? vendoredSlcContract.asFile.text : null
+    if (actual != expected) {
+      throw new GradleException(
+        "contracts/slc-courtschedule.openapi.yml does not match the spec in the pinned api-cp " +
+        "jar. APIM would publish a contract this service does not implement. " +
+        "Run ./gradlew syncSlcContract and commit the result.")
+    }
+  }
+}
+
+tasks.named('check') { dependsOn 'verifySlcContract' }
+
 // The try-it-now contracts. Two specs, shared by every try-it-now service: the public one a
 // consumer sees alongside the api-cp-* contract, and the internal admin one that is not published
 // to APIM. Both generate interfaces this service implements, the same way it implements
