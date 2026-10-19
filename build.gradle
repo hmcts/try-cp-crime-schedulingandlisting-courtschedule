@@ -163,7 +163,7 @@ dependencies {
   // not resolvable on the CNP Jenkins agent, so the build is green locally and red in the pipeline.
   // They also drag in swagger-parser v2 and v3 and swagger-core 1.6.x for no runtime purpose.
   // The real fix belongs upstream in api-cp-*; until it lands, exclude them here. Do not re-add.
-  implementation("uk.gov.hmcts.cp:api-cp-crime-schedulingandlisting-courtschedule:1.1.2") {
+  implementation("uk.gov.hmcts.cp:api-cp-crime-schedulingandlisting-courtschedule:1.1.2-9003333") {
     exclude group: 'org.openapitools',     module: 'openapi-generator-core'
     exclude group: 'io.swagger.parser.v3', module: 'swagger-parser'
     exclude group: 'io.swagger.core.v3',   module: 'swagger-annotations'
