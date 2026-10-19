@@ -230,7 +230,7 @@ dependencies {
   testImplementation 'org.testcontainers:junit-jupiter:1.21.4'
   testImplementation group: 'org.springframework.boot', name: 'spring-boot-starter-test'
   testImplementation group: 'org.springframework.boot', name: 'spring-boot-starter-webmvc-test'
-  testImplementation group: 'io.rest-assured', name: 'rest-assured', version: '6.0.1'
+  testImplementation group: 'io.rest-assured', name: 'rest-assured', version: '6.2.0'
 }
 
 // NOTE: there is deliberately no springBoot.buildInfo block here.
