@@ -13,17 +13,16 @@ plugins {
 }
 
 application {
-  mainClass = 'uk.gov.hmcts.cp.Application'
-  // The product is amp, so the coordinate is too. Nothing here is published - there is no
-  // maven-publish plugin - so this is identifying metadata, not a release coordinate.
+  mainClass = 'uk.gov.hmcts.amp.Application'
+  // The product is amp, so the package and the coordinate both say so. Nothing here is published -
+  // there is no maven-publish plugin - so the group is identifying metadata, not a release
+  // coordinate.
   //
-  // Deliberately NOT changed with it:
-  //   * mainClass and the Java packages, which stay uk.gov.hmcts.cp. The auth package is a
-  //     byte-identical copy of service-cp-crime-scheduleandlist-courtschedule's and `diff -r` is
-  //     the check, so a package rename would fork it.
-  //   * sonar.projectKey below, which is a SonarCloud project identity. Changing it orphans the
-  //     existing project and loses its history.
-  //   * the api-cp dependency's own group, which belongs to that artefact.
+  // Two things deliberately keep uk.gov.hmcts.cp, because they are not ours:
+  //   * uk.gov.hmcts.cp.openapi.{api,model} - the generated interface and models come from the
+  //     api-cp contract jar.
+  //   * sonar.projectKey below, a SonarCloud project identity rather than a derivative of either
+  //     the group or the package. Changing it orphans the existing project and its history.
   group = 'uk.gov.hmcts.amp'
   version = '0.0.1'
 }
@@ -132,14 +131,19 @@ sonarqube {
 // The auth sources and the two filters below are lifted from
 // service-cp-crime-scheduleandlist-courtschedule so this sandbox enforces exactly the token rules the
 // live API enforces. Five of them (EntraTokenValidator, EntraAuthProperties, AuthMode,
-// ValidatedCaller, TokenValidationException) are byte-identical to their source and must stay that
-// way; the rest diverge only as documented in-file. Keeping them diffable matters more than
-// reformatting them to this repo's checkstyle profile, so they are excluded rather than edited.
+// ValidatedCaller, TokenValidationException) are identical to their source APART FROM the package
+// qualifier, and must stay that way; the rest diverge only as documented in-file. Keeping them
+// diffable matters more than reformatting them to this repo's checkstyle profile, so they are
+// excluded rather than edited.
+//
+// These exclusions are path-coupled: renaming the package moves the files out from under them and
+// checkstyle starts enforcing this repo's profile on code that is deliberately not written to it.
+// That is how the uk.gov.hmcts.cp -> uk.gov.hmcts.amp rename first failed.
 // Everything written for this service is checked normally.
 checkstyleMain {
-  exclude 'uk/gov/hmcts/cp/auth/**'
-  exclude 'uk/gov/hmcts/cp/filters/ClientIdResolutionFilter.java'
-  exclude 'uk/gov/hmcts/cp/filters/tracing/TracingFilter.java'
+  exclude 'uk/gov/hmcts/amp/auth/**'
+  exclude 'uk/gov/hmcts/amp/filters/ClientIdResolutionFilter.java'
+  exclude 'uk/gov/hmcts/amp/filters/tracing/TracingFilter.java'
 }
 
 // https://jeremylong.github.io/DependencyCheck/dependency-check-gradle/configuration.html
@@ -268,7 +272,7 @@ bootJar {
 // missing everywhere else. Give the next spec its own package and the rest follows.
 
 def contractSpecs = [
-  tryItNowPublic: ['try-it-now-public.openapi.yml', 'uk.gov.hmcts.cp.tryitnow.openapi'],
+  tryItNowPublic: ['try-it-now-public.openapi.yml', 'uk.gov.hmcts.amp.tryitnow.openapi'],
 ]
 
 contractSpecs.each { taskSuffix, spec ->
