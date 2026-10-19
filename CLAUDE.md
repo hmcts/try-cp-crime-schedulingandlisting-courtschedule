@@ -15,7 +15,7 @@ platform. No ADO pipelines, no `cp-vp-aks-deploy`, no `wire-service-deployment`.
 ## Source Structure
 
 ```
-uk.gov.hmcts.cp/
+uk.gov.hmcts.amp/            (the api-cp contract jar keeps uk.gov.hmcts.cp.openapi)
   Application.java                    @SpringBootApplication
   auth/                               COPIED from service-cp-crime-scheduleandlist-courtschedule
     EntraTokenValidator               Signature (RS256-pinned) + claims validation — do not edit
@@ -74,13 +74,26 @@ uk.gov.hmcts.cp/
   this service fetch, or recording from live — breaks the reason it is allowed to run in CNP and be
   publicly readable.
 - **The auth code is a copy, not a fork.** `EntraTokenValidator`, `EntraAuthProperties`, `AuthMode`,
-  `ValidatedCaller` and `TokenValidationException` must stay **byte-identical** to
-  `service-cp-crime-scheduleandlist-courtschedule` so consumers meet production auth behaviour here;
-  `diff -r` against that repo is the check. `AuthorizationPolicy` (exempt paths),
+  `ValidatedCaller` and `TokenValidationException` must stay identical to
+  `service-cp-crime-scheduleandlist-courtschedule` **apart from the package qualifier**, so consumers
+  meet production auth behaviour here. Since the rename to `uk.gov.hmcts.amp` a plain `diff` no
+  longer passes — the check is a normalised one, and it must come back clean:
+
+  ```bash
+  L=../service-cp-crime-scheduleandlist-courtschedule/src/main/java/uk/gov/hmcts/cp/auth
+  for f in AuthMode EntraAuthProperties EntraTokenValidator TokenValidationException ValidatedCaller; do
+    diff <(sed 's/uk\.gov\.hmcts\.amp/uk.gov.hmcts.cp/g' src/main/java/uk/gov/hmcts/amp/auth/$f.java) "$L/$f.java"
+  done
+  ```
+
+  Every difference it reports that is **not** a `uk.gov.hmcts.amp` qualifier is a fork, and a defect. `AuthorizationPolicy` (exempt paths),
   `ClientIdResolutionFilter` (CORS preflight) and `TracingFilter` (traceId generation) diverge
-  deliberately, each documented in-file.
+  deliberately, each documented in-file. All three, plus the five above, are excluded from
+  `checkstyleMain` **by path** in `build.gradle` — a package rename silently moves them out from
+  under those excludes and checkstyle then enforces this repo's profile on code that is deliberately
+  not written to it.
 - **Auth is real, not mocked.** `AUTH_MODE=ENFORCE`. The only thing that varies is the key *source*,
-  via `auth.key-source` (`uk.gov.hmcts.cp.config.TokenKeySource`): `ImmutableJWKSet` over the demo key
+  via `auth.key-source` (`uk.gov.hmcts.amp.config.TokenKeySource`): `ImmutableJWKSet` over the demo key
   (`SELF_ISSUED`) or a `JWKSourceBuilder` fetching the tenant's JWKS (`ENTRA`). Never set
   `AUTH_MODE=OFF` — it would delete the behaviour this service exists to demonstrate.
 - **Two auth realms, and they must not be confused.** *(Not on master: the admin half was removed in

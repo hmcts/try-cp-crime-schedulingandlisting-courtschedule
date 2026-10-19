@@ -44,7 +44,7 @@ azure:
     instrumentation-key: ${rpe.AppInsightsInstrumentationKey:00000000-0000-0000-0000-000000000000}
 
 # Validation is the SAME EntraTokenValidator the real service uses, in both key sources. Only the
-# keys and the issuer identifiers differ - see uk.gov.hmcts.cp.config.TokenKeySource.
+# keys and the issuer identifiers differ - see uk.gov.hmcts.amp.config.TokenKeySource.
 #
 #   SELF_ISSUED  this service mints the tokens it verifies, against an in-memory key. No egress, no
 #                app registration. Local development, and any environment without one yet.

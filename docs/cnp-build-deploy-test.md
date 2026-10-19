@@ -251,7 +251,7 @@ Note there are **two** independent consumers of the health endpoint: the Kuberne
 and the pipeline's own post-install check, which polls `https://<fqdn>/health`
 (`vars/helmInstall.groovy:189-191`). Both must be unauthenticated.
 
-In this repo the exemption lives in `uk.gov.hmcts.cp.auth.AuthorizationPolicy`, which treats
+In this repo the exemption lives in `uk.gov.hmcts.amp.auth.AuthorizationPolicy`, which treats
 `/health` and its groups as a rule rather than an enumeration — so a new health group is covered
 automatically — and lists `/info` and `/prometheus` explicitly, because with `base-path: /` the
 prefix rule cannot match them. See the debugging table in [`../CLAUDE.md`](../CLAUDE.md).
