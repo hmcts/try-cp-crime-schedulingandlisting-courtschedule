@@ -5,9 +5,13 @@ locals {
   }
 
   # The second spec, where one is configured - the SLC contract.
+  # Keyed only where a second spec is configured. A null-valued entry would force every later
+  # lookup through a conditional, and HCL will not unify {} with a populated object - which is
+  # exactly how the first version of this failed.
   merge_specs = {
     for api_key, api in var.apis :
-    api_key => api.merge_spec_path == null ? null : yamldecode(file(api.merge_spec_path))
+    api_key => yamldecode(file(api.merge_spec_path))
+    if api.merge_spec_path != null
   }
 
   # What APIM actually publishes: the allow-listed paths from the sandbox contract, plus every
@@ -19,7 +23,7 @@ locals {
         for path, item in local.api_specs[api_key].paths : path => item
         if api.expose_paths == null || contains(coalesce(api.expose_paths, []), path)
       },
-      local.merge_specs[api_key] == null ? {} : local.merge_specs[api_key].paths
+      try(local.merge_specs[api_key].paths, {})
     )
   }
 
@@ -30,7 +34,7 @@ locals {
     for api_key, api in var.apis :
     api_key => merge(
       try(local.api_specs[api_key].components.schemas, {}),
-      local.merge_specs[api_key] == null ? {} : try(local.merge_specs[api_key].components.schemas, {})
+      try(local.merge_specs[api_key].components.schemas, {})
     )
   }
 
@@ -68,22 +72,27 @@ locals {
     })
   }
 
+  # Always applied, never branched. An `api.try_it_auth_headers ? x : y` here would be the same
+  # trap as above: the two sides are objects of different shape and HCL refuses to unify them.
+  # Filtering the header list instead keeps one code path - with the flag off the comprehension
+  # yields [], concat is a no-op, and the document is unchanged.
   import_specs = {
     for api_key, api in var.apis :
-    api_key => yamlencode(
-      api.try_it_auth_headers ? merge(local.combined_specs[api_key], {
-        paths = {
-          for path, item in local.combined_paths[api_key] : path => merge(
-            { for key, value in item : key => value if !contains(local.http_methods, key) },
-            {
-              for method, operation in item : method => merge(operation, {
-                parameters = concat(try(operation.parameters, []), local.try_it_headers)
-              }) if contains(local.http_methods, method)
-            }
-          )
-        }
-      }) : local.combined_specs[api_key]
-    )
+    api_key => yamlencode(merge(local.combined_specs[api_key], {
+      paths = {
+        for path, item in local.combined_paths[api_key] : path => merge(
+          { for key, value in item : key => value if !contains(local.http_methods, key) },
+          {
+            for method, operation in item : method => merge(operation, {
+              parameters = concat(
+                try(operation.parameters, []),
+                [for header in local.try_it_headers : header if api.try_it_auth_headers],
+              )
+            }) if contains(local.http_methods, method)
+          }
+        )
+      }
+    }))
   }
 }
 
