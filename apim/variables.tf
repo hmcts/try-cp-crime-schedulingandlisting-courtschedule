@@ -97,5 +97,20 @@ variable "apis" {
 
     # Adds Authorization and Accept header boxes to the portal's Try it (APIM import only).
     try_it_auth_headers = optional(bool, false)
+
+    # Paths from openapi_spec_path to publish. Unset publishes all of them.
+    #
+    # The sandbox contract describes three endpoints, but only one belongs in APIM. The demo token
+    # endpoint and the demo JWKS are the self-issued surface - they do not exist at all where
+    # auth.key-source is ENTRA, which is what sandbox runs, so publishing them would document a
+    # 404. A consumer reaching this through APIM gets its token from Entra.
+    expose_paths = optional(list(string))
+
+    # A second spec whose paths and schemas are merged into the imported document.
+    #
+    # This is how the API being demonstrated reaches APIM. /scenarios describes the sandbox;
+    # /case/{case_urn}/courtschedule comes from the SLC contract, so a consumer sees one API with
+    # the discovery endpoint and the real shape together rather than two half-APIs.
+    merge_spec_path = optional(string)
   }))
 }
