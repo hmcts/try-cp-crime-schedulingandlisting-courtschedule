@@ -121,18 +121,35 @@ It needs Contributor on the APIM instance.
 
 ## Acceptance test
 
-APIM's runtime behaviour cannot be checked without an instance, so the first apply is the proof.
-The API sets `subscription_required = false` inside a product that sets it `true` — supported, and
-the reason discovery works without a key. Confirm it:
+APIM's runtime behaviour cannot be checked without an instance, so an apply is the proof. Both the
+product and the API set `subscription_required = true`, so every path needs a key — `/scenarios`
+included. Four checks, through the SPS gateway host:
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' \
-  https://sps-api-mgmt-sbox.azure-api.net/amp/try/slc/scenarios
+H=https://sps-api-mgmt.sandbox.api.hmcts.net/amp/try/slc
+
+# 1. no key at all
+curl -s -o /dev/null -w '%{http_code}\n' "$H/scenarios"
+# 401 "Access denied due to missing subscription key"
+
+# 2. key, no token - discovery is exempt from validate-jwt
+curl -s -o /dev/null -w '%{http_code}\n' -H "Ocp-Apim-Subscription-Key: $KEY" "$H/scenarios"
+# 200
+
+# 3. key, no token, on a protected operation
+curl -s -o /dev/null -w '%{http_code}\n' -H "Ocp-Apim-Subscription-Key: $KEY" \
+  "$H/case/TIN-ALLOCATED-01/courtschedule"
+# 401 {"error":"Missing CNP Authorization header."} - the policy, not the subscription
+
+# 4. an operation that does not exist
+curl -s -o /dev/null -w '%{http_code}\n' -H "Ocp-Apim-Subscription-Key: $KEY" "$H/not-a-path"
+# 404 "Resource not found"
 ```
 
-`200` means the open-API setting is honoured. `401 Access denied due to missing subscription key`
-means it is not, and the flag has to move to the product. Check the gateway hostname against the
-first plan output — `azure-api.net` is the default, but SPS may use a custom domain.
+Checks 1 and 3 both return 401 and mean different things — compare the **body**, not the status.
+Check 2 failing with 401 means `/scenarios` lost its `UrlTemplate` exemption in the policy.
+
+These same four are asserted by the `Gateway - …` requests in `amp-bruno-collection/cnp/try-slc`.
 
 ## Running locally
 

@@ -4,9 +4,10 @@ api_mgmt_name = "sps-api-mgmt-sbox"
 apim_product = {
   name = "try-it-now-cp-crime-schedulingandlisting"
 
-  # The product requires a subscription so the Marketplace can still issue keys against it, but
-  # the API below sets subscription_required = false and that wins for the API itself. This is the
-  # standard way to keep an open API inside a managed product.
+  # The product requires a subscription, so the Marketplace issues keys against it, and the API
+  # below requires one too. Both are true, so there is no open path: every operation needs a key.
+  # The API-level flag is the one that governs the API, which is why it is set explicitly rather
+  # than left to inherit.
   subscription_required         = true
   subscriptions_limit           = 20
   approval_required             = false
@@ -44,11 +45,18 @@ apis = {
     # The CNP sandbox deployment, from apps/amp/amp-try-slc/sbox.yaml in cnp-flux-config.
     service_url = "https://amp-try-slc.sandbox.platform.hmcts.net"
 
-    # No key to call it. GET /scenarios publishes the demo credentials, so it has to be reachable
-    # before a consumer holds anything - a subscription key included. Rate and quota limits in
-    # policies/api-policy.xml are what stands in for a key here. Flip this to true if the
-    # Marketplace should gate discovery too; that is a product decision, not a technical one.
-    subscription_required = false
+    # A key is required, so the Marketplace gates discovery as well as the data. This was false
+    # on the reasoning that GET /scenarios has to be readable before a consumer holds anything -
+    # that is a product decision, and it has been taken the other way: a sandbox consumer arrives
+    # through the Marketplace and already holds a key by the time they get here.
+    #
+    # It applies to /scenarios too. That path stays exempt from validate-jwt in
+    # policies/api-policy.xml, so discovery needs a key but no Entra token - gated to subscribers
+    # without a round trip to the tenant.
+    #
+    # Sandbox only. An aat or demo tfvars added later makes its own choice; demo is the public
+    # catalogue's target and a browser there holds no key, so do not copy this to it by default.
+    subscription_required = true
 
     # Mirrors api-cp-crime-schedulingandlisting-courtschedule's sbox policy. Wider than this
     # service's KNOWN_ROLES of app.read alone, and that is the point: a caller holding only
