@@ -28,7 +28,7 @@ Two directories, two states, two pipelines. `apim/` is driven only by
 |---|---|
 | APIM Product | `try-it-now-cp-crime-schedulingandlisting` |
 | APIM API | `public` — at path `amp/try/slc`, built from **two** specs (below) |
-| API policy | Rate limit, quota, concurrency. **No `validate-jwt`** — see `policies/api-policy.xml` |
+| API policy | Rate limit, quota, concurrency, plus `validate-jwt` **where the realm is ENTRA** — see `policies/api-policy.xml` |
 
 ## What APIM publishes, and why it is not one whole spec
 
@@ -66,10 +66,21 @@ to come back; when it does it must **not** be registered here. See `contracts/RE
 Platform app gateway. This sandbox runs in CNP, where hosts end `.platform.hmcts.net`, so that
 expression would append `.org.uk` to a host that does not have it.
 
-**2. No `validate-jwt`.** The sandbox issues and verifies its own tokens, and every path in the
-public contract is unauthenticated by design. The full reasoning is in the comment at the top of
-`policies/api-policy.xml`; the short version is that edge enforcement would reject every demo token
-and delete the behaviour the sandbox exists to demonstrate.
+**2. `validate-jwt` is per-environment, not absent.** The policy is rendered by `templatefile()`
+and the `validate-jwt` block appears only where `entra_tenant_id` is set. That is sandbox and
+nothing else, because `auth.key-source` is `ENTRA` there and `SELF_ISSUED` everywhere else — an
+Entra `validate-jwt` in front of a self-issued deployment would reject every token it is handed.
+Leave the variable unset in a `SELF_ISSUED` environment's tfvars and the gateway falls back to
+throughput protection alone.
+
+`GET /scenarios` is exempt even in sandbox. It is the discovery endpoint: a consumer reads
+`authentication.mode` from it to learn which realm they are in, so it has to answer before they
+hold a token. The exemption is an allow-list of one on `UrlTemplate`, so an operation added later
+is protected by default rather than open by accident.
+
+`required_roles` deliberately mirrors api-cp's `["slc.read", "app.read"]`, which is wider than this
+service's own `KNOWN_ROLES` of `app.read` alone. That gap is the behaviour being rehearsed: against
+the real API a caller holding only `slc.read` passes APIM and is refused 403 by the service.
 
 **3. No prod.** Demo is the last environment for this service. There is no `prod.tfvars` and no
 prod job in the workflow.
@@ -163,5 +174,6 @@ try_it_now = {
 }
 ```
 
-It needs the same `service_url` change made here, and the JWT policy question answered — a demo
-token will not pass that repo's `validate-jwt`. Worth settling before copying this across.
+It needs the same `service_url` change made here. The JWT question is now answered the same way it
+is here: set `entra_tenant_id` only where the realm is `ENTRA`. A demo token will not pass any
+`validate-jwt`, so a `SELF_ISSUED` environment must leave it unset.
