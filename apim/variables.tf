@@ -70,6 +70,25 @@ variable "apim_product" {
   })
 }
 
+# ─── Entra validation (sandbox only) ───
+#
+# Set these and the API policy gains a validate-jwt block; leave them unset and it does not.
+# They are per-environment on purpose: auth.key-source is ENTRA in sandbox and SELF_ISSUED
+# everywhere else, and an Entra validate-jwt in front of a self-issued deployment rejects every
+# token it is handed. See policies/api-policy.xml.
+
+variable "entra_tenant_id" {
+  type        = string
+  description = "Entra tenant that issues tokens for this environment. Unset disables validate-jwt."
+  default     = null
+}
+
+variable "entra_audience" {
+  type        = string
+  description = "Expected aud claim: the resource application's bare client ID GUID, not api://<guid>."
+  default     = null
+}
+
 variable "apis" {
   description = "Map of APIs to register in APIM. Details are sourced from the referenced OpenAPI spec file."
   type = map(object({
@@ -95,6 +114,10 @@ variable "apis" {
     # discovery endpoint has to be readable before a consumer holds anything at all.
     subscription_required = optional(bool, false)
 
+    # Roles accepted by the gateway. Deliberately wider than the service's own KNOWN_ROLES - see
+    # the note in policies/api-policy.xml. Ignored unless entra_tenant_id is set.
+    required_roles = optional(list(string), ["app.read"])
+
     # Adds Authorization and Accept header boxes to the portal's Try it (APIM import only).
     try_it_auth_headers = optional(bool, false)
 
@@ -113,4 +136,9 @@ variable "apis" {
     # the discovery endpoint and the real shape together rather than two half-APIs.
     merge_spec_path = optional(string)
   }))
+
+  validation {
+    condition     = alltrue([for api in values(var.apis) : length(api.required_roles) > 0])
+    error_message = "Each API must have at least one required_roles entry."
+  }
 }

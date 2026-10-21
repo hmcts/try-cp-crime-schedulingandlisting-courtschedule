@@ -1,31 +1,66 @@
 <!--
-  Deliberately NO validate-jwt, which is where this diverges from
-  api-cp-crime-schedulingandlisting-courtschedule's policy of the same name.
+  Rendered by templatefile() from apis.tf. The validate-jwt block appears only where
+  entra_tenant_id is set, which is the ENTRA realm, which is sandbox and nothing else.
 
-  That policy validates a corporate Entra token against login.microsoftonline.com and rejects any
-  request without an Authorization header. Both halves would be wrong here:
+  WHY IT IS CONDITIONAL. auth.key-source decides who issued the token this service will accept,
+  and it varies per environment: sandbox is ENTRA, every other environment is SELF_ISSUED. A
+  self-issued token is signed with a key from this service's own vault and carries this service's
+  own issuer - Microsoft has never heard of it, so an unconditional validate-jwt would reject
+  every single one. The workflow applies whatever apim/*.tfvars exists, so the day a SELF_ISSUED
+  environment gets its own tfvars this has to already be off for it. Leave entra_tenant_id unset
+  there and the gateway falls back to throughput protection alone, which is what that realm wants.
 
-  1. This sandbox issues its OWN tokens, from POST /oauth2/v2.0/token, signed with a key held in
-     its key vault and verified in-process by the EntraTokenValidator copied byte-for-byte from the
-     live service. Microsoft has never heard of them, so validate-jwt would reject every one. The
-     whole point of the sandbox is that a consumer meets the real validator's behaviour - including
-     its 401s and its 403 insufficient_scope - so moving that enforcement to the edge would delete
-     the thing being demonstrated.
+  WHY /scenarios IS EXEMPT. It is the discovery endpoint. A consumer reads authentication.mode
+  from it to find out which realm they are in and where to get a token, so it has to answer before
+  they hold anything at all - a 401 there makes the sandbox impossible to start using. The
+  exemption is an allow-list of one on UrlTemplate rather than a deny-list, so an operation added
+  later is protected by default rather than open by accident. UrlTemplate and not Operation.Id:
+  path templates survive the import verbatim, operation ids are APIM's to derive.
 
-  2. Every path in try-it-now-public.openapi.yml is unauthenticated by design. GET /scenarios is
-     where the demo credentials come from, so it has to be readable before a consumer holds
-     anything; the same goes for the token endpoint and JWKS. Returning 401 on a missing header
-     would make the sandbox impossible to start using.
-
-  What is left is throughput protection, which matters more here than on an internal API: this is a
-  public surface with published credentials. The counter falls back to the caller's IP, since an
-  API with subscription_required = false has no subscription key to count against.
-
-  /admin/** is absent from the public contract and is not registered in APIM at all - it is guarded
-  by AdminAuthFilter and a real corporate Entra token. See contracts/README.md.
+  WHY BOTH ROLES. required_roles mirrors api-cp-crime-schedulingandlisting-courtschedule's policy
+  (slc.read, app.read), which is wider than this service's own KNOWN_ROLES of app.read alone.
+  That gap is deliberate and is the point of the sandbox: against the real API a caller holding
+  only slc.read passes APIM and is refused 403 by the service. Narrowing this to app.read would
+  turn that 403 into a 401 at the edge and the consumer would rehearse a journey that does not
+  exist. The role check that matters lives in AuthorizationPolicy, not here.
 -->
 <policies>
     <inbound>
+%{ if entra_tenant_id != null ~}
+        <choose>
+            <when condition="@(context.Operation.UrlTemplate == &quot;/scenarios&quot;)" />
+            <when condition="@(context.Request.Headers.ContainsKey(&quot;Authorization&quot;))">
+                <validate-jwt header-name="Authorization" failed-validation-httpcode="401" failed-validation-error-message="Your JWT token failed CNP validation! ">
+                    <openid-config url="https://login.microsoftonline.com/${entra_tenant_id}/v2.0/.well-known/openid-configuration" />
+                    <audiences>
+                        <audience>${entra_audience}</audience>
+                    </audiences>
+                    <issuers>
+                        <issuer>https://login.microsoftonline.com/${entra_tenant_id}/v2.0</issuer>
+                    </issuers>
+                    <required-claims>
+                        <claim name="aud" match="any">
+                            <value>${entra_audience}</value>
+                        </claim>
+                        <claim name="roles" match="any">
+%{ for role in required_roles ~}
+                            <value>${role}</value>
+%{ endfor ~}
+                        </claim>
+                    </required-claims>
+                </validate-jwt>
+            </when>
+            <otherwise>
+                <return-response>
+                    <set-status code="401" reason="Unauthorized" />
+                    <set-header name="Content-Type" exists-action="override">
+                        <value>application/json</value>
+                    </set-header>
+                    <set-body>{"error":"Missing CNP Authorization header."}</set-body>
+                </return-response>
+            </otherwise>
+        </choose>
+%{ endif ~}
         <rate-limit-by-key calls="30" renewal-period="60" counter-key="@((context.Subscription?.Key ?? context.Request.IpAddress) + &quot;:try-slc&quot;)" />
         <quota-by-key calls="500" renewal-period="86400" counter-key="@((context.Subscription?.Key ?? context.Request.IpAddress) + &quot;:try-slc&quot;)" />
         <base />

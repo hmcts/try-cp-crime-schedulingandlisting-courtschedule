@@ -139,7 +139,9 @@ module "apis" {
   content_format = "openapi"
 }
 
-# No validate-jwt, deliberately — see policies/api-policy.xml.
+# The policy carries a validate-jwt block only where entra_tenant_id is set, which is the ENTRA
+# realm, which is sandbox alone. policies/api-policy.xml explains why it is per-environment and
+# why /scenarios is exempt from it.
 resource "azurerm_api_management_api_policy" "api_policy" {
   for_each = var.apis
 
@@ -147,7 +149,11 @@ resource "azurerm_api_management_api_policy" "api_policy" {
   api_management_name = var.api_mgmt_name
   resource_group_name = var.api_mgmt_rg
 
-  xml_content = file("${path.module}/policies/api-policy.xml")
+  xml_content = templatefile("${path.module}/policies/api-policy.xml", {
+    entra_tenant_id = var.entra_tenant_id
+    entra_audience  = var.entra_audience
+    required_roles  = each.value.required_roles
+  })
 
   depends_on = [module.apis]
 }
