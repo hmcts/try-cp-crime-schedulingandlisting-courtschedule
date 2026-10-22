@@ -20,11 +20,12 @@ apim_product = {
 # same pair as AUTH_TENANT_ID and AUTH_AUDIENCE. If they drift, a token fails at one layer or the
 # other and the two 401s look identical from outside.
 #
-# The audience is the shared hmcts-api-marketplace one for every API in the tenant, not a
-# try-slc audience: a consumer's token carries whatever they requested with
-# scope=<resource>/.default, and web-api-marketplace grants app.read on this GUID.
+# try-slc's own resource app, amp-api-try-slc, added by external-entra-id#33. It replaces the
+# shared hmcts-api-marketplace audience 30288840-..., which every API in this tenant pinned: a
+# token minted for any one of them was accepted by all of them, and nothing in the token said
+# which API it was for.
 entra_tenant_id = "d44f885c-4fac-47bf-afde-d7d861ec4d7b"
-entra_audience  = "30288840-e345-4543-99ee-f9253d789339"
+entra_audience  = "c4c8974c-2800-4fe6-964f-dcd4c0820507"
 
 apis = {
   public = {
@@ -58,10 +59,9 @@ apis = {
     # catalogue's target and a browser there holds no key, so do not copy this to it by default.
     subscription_required = true
 
-    # Mirrors api-cp-crime-schedulingandlisting-courtschedule's sbox policy. Wider than this
-    # service's KNOWN_ROLES of app.read alone, and that is the point: a caller holding only
-    # slc.read must pass the gateway and be refused 403 by the service, exactly as against the
-    # real API. See policies/api-policy.xml.
-    required_roles = ["slc.read", "app.read"]
+    # app.read is the only role amp-api-try-slc defines, so it is the only one a token for this
+    # audience can carry. The previous list also named slc.read to mirror api-cp's policy - that
+    # was possible only while both pinned the same shared audience, and is meaningless now.
+    required_roles = ["app.read"]
   }
 }
