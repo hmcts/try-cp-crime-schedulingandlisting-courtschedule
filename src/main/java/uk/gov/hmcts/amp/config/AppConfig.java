@@ -83,7 +83,13 @@ public class AppConfig {
                 .build();
     }
 
+    /**
+     * Verifies tokens in BOTH realms - only the key source differs, which is why this bean is not
+     * itself conditional and takes whichever {@link JWKSource} the realm provides.
+     *
+     */
     @Bean
+    @SuppressWarnings("java:S9352")
     public EntraTokenValidator entraTokenValidator(final EntraAuthProperties authProperties,
                                                    final JWKSource<SecurityContext> jwkSource) {
         return new EntraTokenValidator(authProperties, jwkSource);
