@@ -87,15 +87,6 @@ public class AppConfig {
      * Verifies tokens in BOTH realms - only the key source differs, which is why this bean is not
      * itself conditional and takes whichever {@link JWKSource} the realm provides.
      *
-     * <p>Sonar's S9352 reads the two {@code JWKSource} beans above as competing candidates. They
-     * cannot both exist: {@code selfIssuedJwkSource} and {@code entraJwkSource} carry mutually
-     * exclusive {@code @ConditionalOnProperty} on the same {@code auth.key-source} value, so
-     * exactly one is ever registered and the injection is unambiguous at runtime. The rule is a
-     * static check and does not model that.
-     *
-     * <p><b>Do not "fix" it with {@code @Qualifier} or {@code @Primary}.</b> Naming
-     * {@code entraJwkSource} would fail startup in the self-issued realm, where that bean does not
-     * exist - which is every environment except sandbox.
      */
     @Bean
     @SuppressWarnings("java:S9352")
