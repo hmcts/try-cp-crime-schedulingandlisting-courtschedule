@@ -1,3 +1,8 @@
+# NO LONGER APPLIED. amp-try-it-now owns this registration; see removed.tf.
+#
+# Kept so the plan that handed it over is reviewable against the values that were live at the
+# time, and so the engine's tfvars can be diffed against them. Nothing reads these any more.
+
 api_mgmt_rg   = "rg-sps-platform-sbox"
 api_mgmt_name = "sps-api-mgmt-sbox"
 
