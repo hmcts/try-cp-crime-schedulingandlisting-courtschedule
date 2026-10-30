@@ -1,3 +1,6 @@
+# The provider configuration stays. A plan still refreshes what is in state before the blocks below
+# take effect, and the postgres module was built with the aliased provider, so both have to remain
+# resolvable until every environment has applied this.
 provider "azurerm" {
   features {}
 }
@@ -9,136 +12,119 @@ provider "azurerm" {
   subscription_id            = var.aks_subscription_id
 }
 
-locals {
-  tags = merge(
-    var.common_tags,
-    tomap({ "Team Contact" = var.team_contact })
-  )
-}
-
-data "azurerm_user_assigned_identity" "jenkins" {
-  name                = "jenkins-${var.env == "sandbox" ? "sbox" : var.env}-mi"
-  resource_group_name = "managed-identities-${var.env}-rg"
-}
-
-# Resource group and Key Vault are COMPONENT-scoped, not product-scoped.
+# Releasing this component's infrastructure.
 #
-# They used to be "${var.product}-shared-${var.env}" and "${var.product}-${var.env}". With one amp
-# component that works, but service-api-marketplace and web-api-marketplace build the same names
-# from the same expressions, so the moment they migrate from apim to amp a second Terraform state
-# declares resources that already exist and the apply fails. Naming them per component removes the
-# clash entirely and lets each repo own its own vault.
-resource "azurerm_resource_group" "rg" {
-  name     = "${var.product}-${var.component}-${var.env}"
-  location = var.location
-  tags     = local.tags
-}
-
-# create_managed_identity is the exception to the rule above, and it must stay that way in exactly
-# ONE amp repo. cnp-module-key-vault names it "${var.product}-${local.env}-mi" with no component
-# segment (see its managed-identity.tf), so it is product-wide by construction: amp-aat-mi,
-# amp-demo-mi. That is deliberate - it is the identity the Flux workload-identity service account
-# federates against, ${WI_NAME}-${WI_ENVIRONMENT}-mi, and there is one per namespace.
+# amp-try-it-now serves the slc sandbox now. The APIM product and API moved to its Terraform state
+# on 30 October, keeping all 19 subscription keys, and cnp-flux-config#48741 stops this deployment
+# running. The vault, the Postgres server and the resource group have nothing left to serve.
 #
-# This repo creates it because it is amp's first component. When service-api-marketplace and
-# web-api-marketplace migrate they must set create_managed_identity = false and reference the
-# identity created here, or they will collide on the name.
-module "vault" {
-  source                               = "git@github.com:hmcts/cnp-module-key-vault?ref=master"
-  name                                 = var.vault_name != "" ? var.vault_name : "${var.product}-${var.component}-${var.env}"
-  product                              = var.product
-  env                                  = var.env
-  tenant_id                            = var.tenant_id
-  object_id                            = var.jenkins_AAD_objectId
-  resource_group_name                  = azurerm_resource_group.rg.name
-  product_group_name                   = "DTS API Marketplace"
-  common_tags                          = local.tags
-  managed_identity_object_id           = var.managed_identity_object_id
-  create_managed_identity              = true
-  additional_managed_identities_access = var.additional_managed_identities_access
-  jenkins_object_id                    = data.azurerm_user_assigned_identity.jenkins.principal_id
-}
+# NOTHING IS DESTROYED HERE. Every block below carries destroy = false, so Terraform forgets these
+# resources and leaves them exactly as they are in Azure. Deleting them is a separate, manual step
+# with PlatOps: the resource group carries a CanNotDelete lock that has to be lifted and re-applied,
+# which this pipeline cannot do. Same shape as the amp-aat vault orphaning.
+#
+# WHY NOT `terraform destroy`. The Jenkins pipeline offers plan and apply, nothing else, and nobody
+# on this team can run state commands against the remote backend by hand. A `removed` block is the
+# declarative form: it applies in the pipeline, it is visible in the plan, and the repository keeps
+# a record of what was released and when.
+#
+# ONE PER ENVIRONMENT. The state is per environment, so this takes effect in each one only when
+# that environment's pipeline runs - aat on the master build, sandbox and demo through the
+# parameterised job. Until then that environment's state still holds the resources.
+#
+# ─── THE MANAGED IDENTITY IS THE ONE TO BE CAREFUL WITH ──────────────────────────────────────
+#
+# module.vault created amp-${env}-mi, with create_managed_identity = true, because this repository
+# was amp's first component. It is PRODUCT-wide, not component-scoped - cnp-module-key-vault names
+# it "${var.product}-${local.env}-mi" with no component segment - and it is the identity the Flux
+# workload-identity service account federates against (${WI_NAME}-${WI_ENVIRONMENT}-mi in
+# apps/amp/base). amp-try-it-now and both marketplace apps read it as a DATA SOURCE and create
+# nothing.
+#
+# So after this applies, every amp component still depends on an identity that no repository
+# creates. destroy = false means it survives, and it lives in managed-identities-${env}-rg rather
+# than in this component's resource group, so deleting this resource group by hand will not take it
+# with them. But amp-try-it-now should adopt it - create_managed_identity = true plus an import -
+# before this repository is archived, or it is permanently unowned.
 
-# A server of its own, not a second database on amp-flexible. Two repositories running
-# terraform against one server is a state conflict waiting to happen: whichever applies
-# second sees the other's databases as drift. The name must differ from the backend's
-# "${var.product}-flexible" or the two collide outright.
-module "postgresql_flexible" {
-  providers = {
-    azurerm.postgres_network = azurerm.postgres_network
+removed {
+  from = azurerm_resource_group.rg
+
+  lifecycle {
+    destroy = false
   }
-
-  source                    = "git@github.com:hmcts/terraform-module-postgresql-flexible?ref=master"
-  env                       = var.env
-  product                   = var.product
-  name                      = "${var.product}-try-flexible"
-  component                 = var.component
-  business_area             = "CFT"
-  location                  = var.location
-  subnet_suffix             = var.pgsql_subnet_suffix
-  public_access             = var.pgsql_public_access
-  pgsql_delegated_subnet_id = var.pgsql_public_access ? "bypass" : ""
-
-  common_tags          = local.tags
-  admin_user_object_id = var.jenkins_AAD_objectId
-
-  pgsql_databases = [
-    { name : "tryitnow" }
-  ]
-
-  pgsql_version = "16"
-  pgsql_sku     = var.pgsql_sku
 }
 
-# Secret names are prefixed with the component, so they sit alongside the backend's
-# marketplace-POSTGRES-* in the same vault without colliding. The chart maps them onto the
-# POSTGRES_* aliases application.yaml reads.
-resource "azurerm_key_vault_secret" "postgres_user" {
-  name         = "try-slc-POSTGRES-USER"
-  value        = module.postgresql_flexible.username
-  key_vault_id = module.vault.key_vault_id
-  depends_on   = [module.vault]
+removed {
+  from = module.vault
+
+  lifecycle {
+    destroy = false
+  }
 }
 
-resource "azurerm_key_vault_secret" "postgres_pass" {
-  name         = "try-slc-POSTGRES-PASS"
-  value        = module.postgresql_flexible.password
-  key_vault_id = module.vault.key_vault_id
-  depends_on   = [module.vault]
+removed {
+  from = module.postgresql_flexible
+
+  lifecycle {
+    destroy = false
+  }
 }
 
-resource "azurerm_key_vault_secret" "postgres_host" {
-  name         = "try-slc-POSTGRES-HOST"
-  value        = module.postgresql_flexible.fqdn
-  key_vault_id = module.vault.key_vault_id
-  depends_on   = [module.vault]
+removed {
+  from = azurerm_key_vault_secret.postgres_user
+
+  lifecycle {
+    destroy = false
+  }
 }
 
-resource "azurerm_key_vault_secret" "postgres_port" {
-  name         = "try-slc-POSTGRES-PORT"
-  value        = "5432"
-  key_vault_id = module.vault.key_vault_id
-  depends_on   = [module.vault]
+removed {
+  from = azurerm_key_vault_secret.postgres_pass
+
+  lifecycle {
+    destroy = false
+  }
 }
 
-resource "azurerm_key_vault_secret" "postgres_database" {
-  name         = "try-slc-POSTGRES-DATABASE"
-  value        = "tryitnow"
-  key_vault_id = module.vault.key_vault_id
-  depends_on   = [module.vault]
+removed {
+  from = azurerm_key_vault_secret.postgres_host
+
+  lifecycle {
+    destroy = false
+  }
 }
 
+removed {
+  from = azurerm_key_vault_secret.postgres_port
 
-# tls_private_key is not in cnp-jenkins-config's global allow-list; it is approved for this repo in
-# terraform-infra-approvals/try-cp-crime-schedulingandlisting-courtschedule.json.
-resource "tls_private_key" "demo_signing_key" {
-  algorithm = "RSA"
-  rsa_bits  = 2048
+  lifecycle {
+    destroy = false
+  }
 }
 
-resource "azurerm_key_vault_secret" "demo_signing_key" {
-  name         = "try-slc-DEMO-SIGNING-KEY-JWK"
-  value        = tls_private_key.demo_signing_key.private_key_pem_pkcs8
-  key_vault_id = module.vault.key_vault_id
-  depends_on   = [module.vault]
+removed {
+  from = azurerm_key_vault_secret.postgres_database
+
+  lifecycle {
+    destroy = false
+  }
+}
+
+# The demo signing key is the SELF_ISSUED realm's private key. Releasing it rather than destroying
+# it keeps the pair intact for as long as the vault exists; it is deleted with everything else.
+removed {
+  from = tls_private_key.demo_signing_key
+
+  lifecycle {
+    destroy = false
+  }
+}
+
+removed {
+  from = azurerm_key_vault_secret.demo_signing_key
+
+  lifecycle {
+    destroy = false
+  }
 }
