@@ -23,6 +23,12 @@
     <rule ref="category/java/codestyle.xml">
         <exclude name="AtLeastOneConstructor"/>
         <exclude name="CallSuperInConstructor"/>
+        <!-- New in PMD 7.29.0, and PMD's own documentation calls it "not a widely accepted style
+             and may be considered controversial", pointing at VariableDeclarationUsageDistance
+             instead. It wants every local declared, uninitialized, at the top of its block - the
+             opposite of declaring at first use, which is what this codebase does throughout.
+             Excluded for the same reason as OnlyOneReturn below, not to silence a backlog. -->
+        <exclude name="LocalVariableDeclarationShouldBeAtStartOfBlock"/>
         <exclude name="LongVariable"/>
         <exclude name="OnlyOneReturn"/>
         <exclude name="ShortVariable"/>
