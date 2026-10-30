@@ -1,5 +1,13 @@
 # apim — APIM registration
 
+> **Handed over to `amp-try-it-now`.** The product, the API and the policy described below still
+> exist in sbox and still carry their 19 subscriptions — they are simply managed from the engine's
+> repository now, which registers a sandbox for every API rather than only this one. `removed.tf`
+> says how the handover was done and how to undo it. Everything below describes what was handed
+> over and stays accurate as history; nothing in this directory creates anything any more, and the
+> directory itself goes when this service is retired.
+
+
 Terraform that registers this sandbox's **public** contract with the HMCTS Shared Platform
 Services APIM, so a prospective consumer can reach it without a VPN.
 
